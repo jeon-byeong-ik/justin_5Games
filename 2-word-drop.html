@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>단어 낙하 · Word Drop</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; font-family:'Trebuchet MS',system-ui,sans-serif;
+    background:#021a12; color:#fff; user-select:none; }
+  #game { position:relative; width:100vw; height:100vh; overflow:hidden;
+    background:radial-gradient(circle at 50% 20%, #0a5238 0%, #053826 55%, #021a12 100%); }
+  canvas { display:block; width:100%; height:100%; }
+  .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; padding:24px; background:rgba(2,26,18,0.93);
+    backdrop-filter:blur(8px); z-index:50; }
+  .hidden { display:none !important; }
+  h1 { font-size:clamp(28px,7vw,44px); font-weight:900; letter-spacing:2px; margin-bottom:6px;
+    background:linear-gradient(135deg,#fff,#9CFF57); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { color:#1FE3A0; letter-spacing:4px; font-size:12px; margin-bottom:28px; }
+  .char-grid { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:560px; margin-bottom:24px; }
+  .char-card { width:96px; padding:12px 8px; border-radius:14px; cursor:pointer; background:rgba(255,255,255,0.04);
+    border:2px solid rgba(255,255,255,0.12); transition:all 0.2s; }
+  .char-card:hover { transform:translateY(-4px); }
+  .char-card.sel { border-color:var(--ac); box-shadow:0 0 20px var(--gl); background:rgba(255,255,255,0.08); }
+  .char-card svg { width:52px; height:60px; }
+  .char-card .nm { font-size:12px; font-weight:800; margin-top:6px; letter-spacing:1px; }
+  .char-card .ro { font-size:9px; color:#888; margin-top:2px; }
+  .lvl-row { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:26px; max-width:480px; }
+  .lvl-btn { padding:8px 16px; border-radius:20px; cursor:pointer; font-weight:800; font-size:13px;
+    background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.15); color:#bbb; transition:all 0.2s; }
+  .lvl-btn.sel { background:#1FE3A0; border-color:#1FE3A0; color:#021a12; box-shadow:0 0 16px #1FE3A088; }
+  .btn { padding:14px 40px; border-radius:30px; cursor:pointer; font-weight:900; font-size:17px; letter-spacing:1px;
+    border:none; background:linear-gradient(135deg,#1FE3A0,#9CFF57); color:#021a12;
+    box-shadow:0 8px 24px rgba(31,227,160,0.4); transition:all 0.2s; }
+  .btn:hover { transform:scale(1.05); } .btn:active { transform:scale(0.98); }
+  .label { font-size:11px; letter-spacing:3px; color:#666; margin-bottom:12px; }
+  #hud { position:absolute; top:0; left:0; right:0; padding:14px 18px; display:flex; justify-content:space-between;
+    align-items:flex-start; z-index:20; pointer-events:none; }
+  .hud-box { background:rgba(5,56,38,0.7); border:1px solid rgba(31,227,160,0.4); border-radius:12px;
+    padding:8px 14px; backdrop-filter:blur(4px); }
+  .hud-box .k { font-size:9px; letter-spacing:2px; color:#1FE3A0; }
+  .hud-box .v { font-size:20px; font-weight:900; }
+  .hearts { font-size:20px; }
+  /* 목표 단어(뜻) 표시 */
+  #target { position:absolute; bottom:26px; left:50%; transform:translateX(-50%); z-index:20;
+    background:rgba(5,56,38,0.9); border:2px solid #9CFF57; border-radius:18px; padding:14px 28px;
+    text-align:center; box-shadow:0 0 24px rgba(156,255,87,0.3); }
+  #target .ko { font-size:24px; font-weight:900; color:#9CFF57; }
+  #target .hint { font-size:11px; color:#888; letter-spacing:2px; margin-top:2px; }
+  #combo { position:absolute; top:46%; left:50%; transform:translate(-50%,-50%); font-size:44px; font-weight:900;
+    opacity:0; pointer-events:none; z-index:15; text-shadow:0 0 20px #9CFF57; color:#9CFF57; }
+  @keyframes pop { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.5);} 30%{opacity:1;transform:translate(-50%,-50%) scale(1.2);}
+    100%{opacity:0;transform:translate(-50%,-80%) scale(1);} }
+  .combo-anim { animation:pop 0.8s ease-out; }
+  .final-stat { display:flex; gap:24px; margin:18px 0 26px; }
+  .final-stat .n { font-size:32px; font-weight:900; color:#9CFF57; } .final-stat .l { font-size:11px; color:#888; }
+  .back { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:20; background:rgba(5,56,38,0.7);
+    border:1px solid rgba(31,227,160,0.4); border-radius:10px; padding:6px 12px; font-size:11px; color:#1FE3A0; cursor:pointer; }
+  #muteBtn { position:absolute; top:14px; right:14px; z-index:60; width:38px; height:38px; border-radius:10px;
+    background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+</style>
+</head>
+<body>
+<div id="game">
+  <button id="muteBtn" title="소리 켜기/끄기">🔊</button>
+  <canvas id="cv"></canvas>
+  <div id="start" class="overlay">
+    <div class="sub">ENGLISH · VOCABULARY</div>
+    <h1>단어 낙하</h1>
+    <div class="label">드래곤 선택</div>
+    <div class="char-grid" id="charGrid"></div>
+    <div class="label">단어 난이도</div>
+    <div class="lvl-row" id="lvlRow"></div>
+    <button class="btn" id="startBtn">시 작</button>
+  </div>
+  <div id="hud" class="hidden">
+    <div class="hud-box"><div class="k">SCORE</div><div class="v" id="score">0</div></div>
+    <div class="hud-box" style="text-align:center"><div class="k">COMBO</div><div class="v" id="comboN">0</div></div>
+    <div class="hud-box" style="text-align:right"><div class="k">LIFE</div><div class="hearts" id="hearts">❤❤❤</div></div>
+  </div>
+  <div id="combo"></div>
+  <div id="target" class="hidden"><div class="ko" id="targetKo">사과</div><div class="hint">이 뜻의 영어 단어를 받으세요</div></div>
+  <div id="over" class="overlay hidden">
+    <div class="sub" id="overTitle">GAME OVER</div>
+    <h1 id="overName">결과</h1>
+    <div class="final-stat">
+      <div><div class="n" id="fScore">0</div><div class="l">점수</div></div>
+      <div><div class="n" id="fWords">0</div><div class="l">맞힌 단어</div></div>
+      <div><div class="n" id="fBest">0</div><div class="l">최고 콤보</div></div>
+    </div>
+    <button class="btn" id="retryBtn">다시 시작</button>
+    <button class="back" id="toMenu">← 드래곤 선택</button>
+  </div>
+</div>
+<script>
+/* ===== 공통 사운드 엔진 (Web Audio API, 외부 파일 불필요) ===== */
+const SFX = (()=>{
+  let ctx=null, muted=false;
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return ctx; }
+  function tone(freq,dur,type='sine',vol=0.2,delay=0){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime+delay;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+  function slide(f1,f2,dur,type='sine',vol=0.2){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  function noise(dur,vol=0.15){
+    const a=ac(); if(!a||muted) return;
+    const buf=a.createBuffer(1,a.sampleRate*dur,a.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const s=a.createBufferSource(); s.buffer=buf;
+    const g=a.createGain(); g.gain.setValueAtTime(vol,a.currentTime);
+    const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=800;
+    s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  }
+  return {
+    correct(){ tone(660,0.08,'square',0.15); tone(880,0.12,'square',0.15,0.07); },
+    wrong(){ slide(220,90,0.3,'sawtooth',0.18); },
+    combo(n){ const base=520+Math.min(n,12)*40; tone(base,0.08,'triangle',0.18); tone(base*1.5,0.1,'triangle',0.15,0.06); },
+    gold(){ tone(784,0.08,'triangle',0.18); tone(988,0.08,'triangle',0.18,0.07); tone(1319,0.14,'triangle',0.18,0.14); },
+    shoot(){ slide(880,330,0.12,'square',0.12); },
+    boom(){ noise(0.3,0.18); slide(160,50,0.3,'sawtooth',0.12); },
+    warp(){ slide(330,1320,0.5,'sine',0.14); },
+    click(){ tone(440,0.05,'square',0.12); },
+    win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'triangle',0.18,i*0.12)); },
+    lose(){ [392,330,262].forEach((f,i)=>tone(f,0.25,'sine',0.18,i*0.14)); },
+    toggle(){ muted=!muted; return muted; },
+    isMuted(){ return muted; },
+    resume(){ const a=ac(); if(a&&a.state==='suspended') a.resume(); }
+  };
+})();
+
+const CHARS=[
+  {id:'voxa',nm:'VOXA',ro:'표준',ac:'#1FE3A0',gl:'#1FE3A0aa',perk:'균형잡힌 언어 드래곤',svg:svgVoxa},
+  {id:'calc',nm:'CALC-9',ro:'정밀',ac:'#7B6CFF',gl:'#7B6CFFaa',perk:'단어가 더 천천히 떨어짐',svg:svgCalc},
+  {id:'stellan',nm:'STELLAN',ro:'점수+',ac:'#FF8A3D',gl:'#FF8A3Daa',perk:'단어 점수 +50%',svg:svgStellan},
+  {id:'gaia',nm:'GAIA',ro:'생명력',ac:'#FF5C9D',gl:'#FF5C9Daa',perk:'하트 4개로 시작',svg:svgGaia},
+  {id:'prism',nm:'PRISM',ro:'콤보+',ac:'#FFD23D',gl:'#FFD23Daa',perk:'콤보 점수 2배',svg:svgPrism},
+];
+function svgVoxa(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="42" rx="16" ry="20" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="14" ry="13" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><path d="M20 14 L17 4 Q22 9 24 14Z" fill="#0d4630" stroke="#1FE3A0"/><path d="M40 14 L43 4 Q38 9 36 14Z" fill="#0d4630" stroke="#1FE3A0"/><ellipse cx="25" cy="23" rx="3" ry="4" fill="#9CFF57"/><ellipse cx="35" cy="23" rx="3" ry="4" fill="#9CFF57"/><text x="30" y="48" text-anchor="middle" fill="#9CFF57" font-size="7" font-family="monospace" font-weight="bold">A!</text></svg>`;}
+function svgCalc(){return `<svg viewBox="0 0 60 70"><rect x="14" y="26" width="32" height="34" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="18" y="8" width="24" height="22" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="22" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="22" y="18" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="18" width="7" height="2" fill="#4DD9FF"/></svg>`;}
+function svgStellan(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="22" rx="16" ry="18" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/><ellipse cx="30" cy="22" rx="11" ry="13" fill="#0d2444"/><circle cx="25" cy="21" r="2.5" fill="#FFD24D"/><circle cx="35" cy="21" r="2.5" fill="#FFD24D"/><rect x="18" y="40" width="24" height="20" rx="8" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/></svg>`;}
+function svgGaia(){return `<svg viewBox="0 0 60 70"><path d="M16 40 Q12 58 30 62 Q48 58 44 40Z" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="16" ry="17" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><path d="M16 22 Q10 6 18 4 Q22 14 20 22Z" fill="#0a5230" stroke="#7CFF9E"/><path d="M44 22 Q50 6 42 4 Q38 14 40 22Z" fill="#0a5230" stroke="#7CFF9E"/><ellipse cx="25" cy="24" rx="3" ry="4" fill="#ffb3d4"/><ellipse cx="35" cy="24" rx="3" ry="4" fill="#ffb3d4"/></svg>`;}
+function svgPrism(){return `<svg viewBox="0 0 60 70"><polygon points="30,30 46,42 42,62 18,62 14,42" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="30,4 42,8 46,22 38,34 22,34 14,22 18,8" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="22,18 30,14 30,24" fill="#FFD23D"/><polygon points="38,18 30,14 30,24" fill="#FFD23D"/></svg>`;}
+
+/* 단어 데이터: [영어, 한국어] — 5개 테마 단계, 총 160+ 단어 */
+const WORDBANK = {
+  1:[ // 기초 — 짧고 쉬운 일상 단어
+     ['apple','사과'],['dog','개'],['cat','고양이'],['book','책'],['water','물'],['sun','해'],['moon','달'],['star','별'],
+     ['tree','나무'],['fish','물고기'],['bird','새'],['hand','손'],['eye','눈'],['milk','우유'],['rain','비'],['snow','눈(날씨)'],
+     ['red','빨강'],['blue','파랑'],['big','큰'],['small','작은'],['hot','뜨거운'],['cold','차가운'],['egg','달걀'],['ball','공'],
+     ['door','문'],['bed','침대'],['shoe','신발'],['hat','모자'],['cup','컵'],['key','열쇠'],['box','상자'],['car','자동차'],
+     ['boy','소년'],['girl','소녀'],['hand','손'],['foot','발']],
+  2:[ // 생활·학교
+     ['family','가족'],['school','학교'],['friend','친구'],['teacher','선생님'],['student','학생'],['kitchen','부엌'],
+     ['window','창문'],['garden','정원'],['morning','아침'],['evening','저녁'],['weather','날씨'],['holiday','휴일'],
+     ['present','선물'],['picture','그림'],['music','음악'],['science','과학'],['homework','숙제'],['pencil','연필'],
+     ['eraser','지우개'],['notebook','공책'],['lesson','수업'],['library','도서관'],['playground','운동장'],['breakfast','아침밥'],
+     ['dinner','저녁밥'],['birthday','생일'],['money','돈'],['market','시장'],['hospital','병원'],['station','역'],
+     ['letter','편지'],['clock','시계'],['mirror','거울'],['umbrella','우산']],
+  3:[ // 자연·동물
+     ['mountain','산'],['river','강'],['ocean','바다'],['forest','숲'],['island','섬'],['desert','사막'],['valley','계곡'],
+     ['rainbow','무지개'],['thunder','천둥'],['lightning','번개'],['animal','동물'],['flower','꽃'],['insect','곤충'],
+     ['butterfly','나비'],['elephant','코끼리'],['tiger','호랑이'],['rabbit','토끼'],['monkey','원숭이'],['dolphin','돌고래'],
+     ['penguin','펭귄'],['eagle','독수리'],['spider','거미'],['turtle','거북이'],['squirrel','다람쥐'],['volcano','화산'],
+     ['glacier','빙하'],['planet','행성'],['comet','혜성'],['season','계절'],['autumn','가을'],['breeze','산들바람'],
+     ['feather','깃털'],['branch','나뭇가지'],['root','뿌리']],
+  4:[ // 감정·행동
+     ['happy','행복한'],['sad','슬픈'],['angry','화난'],['scared','무서운'],['excited','신나는'],['surprised','놀란'],
+     ['tired','피곤한'],['brave','용감한'],['gentle','다정한'],['proud','자랑스러운'],['curious','호기심 많은'],['nervous','긴장한'],
+     ['laugh','웃다'],['cry','울다'],['jump','뛰다'],['run','달리다'],['climb','오르다'],['swim','수영하다'],['dance','춤추다'],
+     ['sing','노래하다'],['draw','그리다'],['build','짓다'],['help','돕다'],['share','나누다'],['protect','보호하다'],
+     ['promise','약속하다'],['forgive','용서하다'],['wonder','궁금해하다'],['believe','믿다'],['choose','선택하다'],
+     ['follow','따라가다'],['whisper','속삭이다'],['shout','외치다'],['smile','미소짓다']],
+  5:[ // 고급 — 긴 단어·추상어
+     ['beautiful','아름다운'],['important','중요한'],['different','다른'],['favorite','가장 좋아하는'],['dangerous','위험한'],
+     ['delicious','맛있는'],['together','함께'],['question','질문'],['answer','대답'],['remember','기억하다'],['understand','이해하다'],
+     ['imagine','상상하다'],['discover','발견하다'],['environment','환경'],['adventure','모험'],['knowledge','지식'],
+     ['language','언어'],['practice','연습'],['celebrate','축하하다'],['experience','경험'],['responsible','책임감 있는'],
+     ['independent','독립적인'],['creative','창의적인'],['confident','자신감 있는'],['generous','너그러운'],['determined','결단력 있는'],
+     ['imagination','상상력'],['curiosity','호기심'],['friendship','우정'],['cooperation','협동'],['achievement','성취'],
+     ['opportunity','기회'],['challenge','도전'],['encourage','격려하다']],
+  6:[ // 학교 과목·활동·스포츠
+     ['math','수학'],['english','영어'],['history','역사'],['geography','지리'],['biology','생물'],['chemistry','화학'],
+     ['physics','물리'],['art','미술'],['drama','연극'],['soccer','축구'],['baseball','야구'],['basketball','농구'],
+     ['tennis','테니스'],['swimming','수영'],['running','달리기'],['cycling','자전거 타기'],['painting','그림 그리기'],
+     ['reading','독서'],['writing','글쓰기'],['singing','노래'],['dancing','춤'],['cooking','요리'],['camping','캠핑'],
+     ['hiking','등산'],['fishing','낚시'],['gardening','정원 가꾸기'],['puzzle','퍼즐'],['contest','대회'],
+     ['team','팀'],['victory','승리'],['medal','메달'],['champion','챔피언']],
+  7:[ // 직업·세계·사회
+     ['doctor','의사'],['nurse','간호사'],['police','경찰'],['firefighter','소방관'],['pilot','조종사'],['farmer','농부'],
+     ['scientist','과학자'],['engineer','공학자'],['artist','예술가'],['writer','작가'],['lawyer','변호사'],['judge','판사'],
+     ['chef','요리사'],['dentist','치과의사'],['astronaut','우주비행사'],['inventor','발명가'],['explorer','탐험가'],
+     ['country','나라'],['capital','수도'],['culture','문화'],['tradition','전통'],['festival','축제'],['citizen','시민'],
+     ['government','정부'],['election','선거'],['economy','경제'],['industry','산업'],['transport','교통'],
+     ['communication','의사소통'],['technology','기술'],['community','공동체'],['volunteer','자원봉사자']],
+};
+
+const LEVELS=[
+  {id:1,nm:'기초',speed:0.20},{id:2,nm:'생활',speed:0.26},{id:3,nm:'자연',speed:0.31},
+  {id:4,nm:'감정',speed:0.36},{id:5,nm:'고급',speed:0.42},{id:6,nm:'활동',speed:0.34},{id:7,nm:'사회',speed:0.40}];
+
+let selChar=CHARS[0], selLevel=LEVELS[0];
+const charGrid=document.getElementById('charGrid');
+CHARS.forEach((c,i)=>{const d=document.createElement('div');d.className='char-card'+(i===0?' sel':'');
+  d.style.setProperty('--ac',c.ac);d.style.setProperty('--gl',c.gl);
+  d.innerHTML=c.svg()+`<div class="nm" style="color:${c.ac}">${c.nm}</div><div class="ro">${c.ro}</div>`;
+  d.onclick=()=>{selChar=c;document.querySelectorAll('.char-card').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');};
+  charGrid.appendChild(d);});
+const lvlRow=document.getElementById('lvlRow');
+LEVELS.forEach((l,i)=>{const b=document.createElement('div');b.className='lvl-btn'+(i===0?' sel':'');b.textContent=l.nm;
+  b.onclick=()=>{selLevel=l;document.querySelectorAll('.lvl-btn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};
+  lvlRow.appendChild(b);});
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+let state='menu';
+let words=[], particles=[], stars=[];
+let score=0,life=3,maxLife=3,combo=0,bestCombo=0,wordCount=0;
+let target=null, dragon={x:0,y:0,ac:'#1FE3A0'};
+let spawnTimer=0, spawnInterval=2200, fallSpeed=0.22, lastT=0, shake=0;
+let wordPool=[];
+
+function initStars(){stars=[];for(let i=0;i<60;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.4+0.3,s:Math.random()*0.25+0.08});}
+
+function pickTarget(){
+  // 현재 단어 풀에서 목표 선정
+  const word = wordPool[Math.floor(Math.random()*wordPool.length)];
+  target = {en:word[0], ko:word[1]};
+  document.getElementById('targetKo').textContent = target.ko;
+}
+
+function spawnWord(){
+  // 목표 단어 + 방해 단어들 중 하나를 떨어뜨림
+  let en, isTarget;
+  if(Math.random()<0.45 && !words.some(w=>w.en===target.en)){
+    en=target.en; isTarget=true;
+  } else {
+    const w=wordPool[Math.floor(Math.random()*wordPool.length)];
+    en=w[0]; isTarget=(en===target.en);
+  }
+  // 목표 단어는 15% 확률로 '황금 단어'(2배 점수)
+  const golden = isTarget && Math.random()<0.15;
+  words.push({en, isTarget, golden, x:60+Math.random()*(W-120), y:-30, caught:false, hue:golden?48:Math.random()*60+90});
+}
+
+function startGame(){
+  SFX.resume();
+  state='play'; score=0;combo=0;bestCombo=0;wordCount=0;
+  maxLife=selChar.id==='gaia'?4:3; life=maxLife;
+  fallSpeed=selLevel.speed*(selChar.id==='calc'?0.8:1);
+  spawnInterval=2200;
+  dragon.ac=selChar.ac; dragon.x=W/2; dragon.y=H-150;
+  words=[];particles=[];
+  wordPool=WORDBANK[selLevel.id];
+  initStars();
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('target').classList.remove('hidden');
+  document.getElementById('score').textContent='0';
+  document.getElementById('comboN').textContent='0';
+  updateHearts(); pickTarget();
+  spawnTimer=0; lastT=performance.now();
+  requestAnimationFrame(loop);
+}
+
+function updateHearts(){document.getElementById('hearts').textContent='❤'.repeat(Math.max(0,life))+'♡'.repeat(Math.max(0,maxLife-life));}
+
+function catchWord(w){
+  if(w.isTarget){
+    let base=Math.round((100+combo*(selChar.id==='prism'?20:10))*(selChar.id==='stellan'?1.5:1));
+    if(w.golden){ base*=2; showCombo('★ GOLD ×2 ★'); SFX.gold(); }
+    else if(combo>=3) SFX.combo(combo); else SFX.correct();
+    score+=base;
+    combo++; wordCount++; if(combo>bestCombo)bestCombo=combo;
+    if(combo>=3 && !w.golden)showCombo(combo);
+    explode(w.x,w.y,w.golden?'#FFD24D':dragon.ac);
+    document.getElementById('score').textContent=score;
+    document.getElementById('comboN').textContent=combo;
+    pickTarget();
+    // 같은 목표의 다른 단어 제거
+    words=words.filter(x=>x===w?false:true);
+  } else {
+    SFX.wrong();
+    combo=0; document.getElementById('comboN').textContent='0';
+    loseLife(); explode(w.x,w.y,'#FF4D6D'); shake=10;
+  }
+  w.caught=true;
+}
+
+function showCombo(c){const el=document.getElementById('combo');
+  el.textContent = (typeof c==='number') ? `${c} COMBO!` : c;
+  el.style.color = (typeof c==='number') ? '#9CFF57' : '#FFD24D';
+  el.classList.remove('combo-anim');void el.offsetWidth;el.classList.add('combo-anim');}
+function loseLife(){life--;updateHearts();if(life<=0)endGame();}
+function explode(x,y,color){for(let i=0;i<16;i++){const a=Math.random()*7,s=Math.random()*4+1;
+  particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color,size:Math.random()*3+1});}}
+
+function endGame(){state='over';
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('target').classList.add('hidden');
+  const ov=document.getElementById('over');ov.classList.remove('hidden');
+  document.getElementById('overName').textContent=selChar.nm;
+  document.getElementById('overName').style.color=selChar.ac;
+  document.getElementById('fScore').textContent=score;
+  document.getElementById('fWords').textContent=wordCount;
+  document.getElementById('fBest').textContent=bestCombo;
+  const key='word_best_'+selChar.id, prev=+(localStorage.getItem(key)||0);
+  if(score>prev){localStorage.setItem(key,score);document.getElementById('overTitle').textContent='★ NEW BEST! ★';SFX.win();}
+  else {document.getElementById('overTitle').textContent='GAME OVER';SFX.lose();}
+}
+
+function loop(t){if(state!=='play')return;const dt=Math.min(t-lastT,50);lastT=t;update(dt);render();requestAnimationFrame(loop);}
+
+function update(dt){
+  stars.forEach(s=>{s.y+=s.s*dt*0.1;if(s.y>H){s.y=0;s.x=Math.random()*W;}});
+  spawnTimer+=dt;
+  if(spawnTimer>spawnInterval){spawnTimer=0;spawnWord();
+    if(spawnInterval>1100)spawnInterval-=18;}
+  const catchY=H-150;
+  words.forEach(w=>{
+    if(w.caught)return;
+    w.y+=fallSpeed*dt*0.1;
+    // 드래곤 근처에서 자동 판정 (탭으로도 가능)
+    if(w.y>catchY){
+      // 바닥 도달
+      if(w.isTarget){ combo=0;document.getElementById('comboN').textContent='0';loseLife();shake=8; }
+      w.caught=true;
+    }
+  });
+  words=words.filter(w=>!w.caught);
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.08;p.life-=0.025;});
+  particles=particles.filter(p=>p.life>0);
+  if(shake>0.5)shake*=0.85;else shake=0;
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);ctx.save();
+  if(shake>0.5)ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
+  ctx.fillStyle='#fff';stars.forEach(s=>{ctx.globalAlpha=s.r/1.7;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();});
+  ctx.globalAlpha=1;
+  // 캐치 라인
+  const ly=H-150;ctx.strokeStyle=dragon.ac+'44';ctx.lineWidth=2;ctx.setLineDash([6,8]);
+  ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(W,ly);ctx.stroke();ctx.setLineDash([]);
+  // 단어 버블
+  words.forEach(w=>drawWord(w));
+  drawDragon();
+  particles.forEach(p=>{ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,7);ctx.fill();});
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+function drawWord(w){
+  ctx.save();ctx.translate(w.x,w.y);
+  ctx.font='bold 20px Trebuchet MS';
+  const bw=Math.max(70,ctx.measureText(w.en).width+34),bh=40;
+  if(w.golden){
+    const pulse=0.6+0.4*Math.sin(performance.now()*0.008);
+    ctx.fillStyle='rgba(80,60,10,0.92)';ctx.strokeStyle='#FFD24D';ctx.lineWidth=3;
+    ctx.shadowColor='#FFD24D';ctx.shadowBlur=14*pulse;
+    roundRect(-bw/2,-bh/2,bw,bh,12);ctx.fill();ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#FFE9A0';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='#FFD24D';ctx.shadowBlur=8;
+    ctx.fillText(w.en,0,1);ctx.shadowBlur=0;
+    // 반짝이 별
+    ctx.fillStyle='#fff';ctx.font='10px serif';ctx.fillText('✦',bw/2-6,-bh/2+6);
+    ctx.restore();return;
+  }
+  ctx.fillStyle='rgba(13,70,48,0.9)';ctx.strokeStyle=`hsl(${w.hue},80%,60%)`;ctx.lineWidth=2;
+  roundRect(-bw/2,-bh/2,bw,bh,12);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.shadowColor=`hsl(${w.hue},80%,60%)`;ctx.shadowBlur=6;
+  ctx.fillText(w.en,0,1);ctx.shadowBlur=0;ctx.restore();
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function drawDragon(){
+  const x=dragon.x,y=dragon.y;ctx.save();ctx.translate(x,y);
+  ctx.shadowColor=dragon.ac;ctx.shadowBlur=18;
+  // 날개
+  ctx.fillStyle=dragon.ac+'66';
+  ctx.beginPath();ctx.moveTo(-14,-6);ctx.quadraticCurveTo(-42,-22,-30,8);ctx.quadraticCurveTo(-22,14,-12,4);ctx.fill();
+  ctx.beginPath();ctx.moveTo(14,-6);ctx.quadraticCurveTo(42,-22,30,8);ctx.quadraticCurveTo(22,14,12,4);ctx.fill();
+  // 몸
+  ctx.fillStyle=dragon.ac;ctx.beginPath();ctx.ellipse(0,0,18,20,0,0,7);ctx.fill();
+  ctx.shadowBlur=0;
+  // 배
+  ctx.fillStyle='rgba(255,255,255,0.18)';ctx.beginPath();ctx.ellipse(0,4,9,12,0,0,7);ctx.fill();
+  // 눈
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-6,-6,3.5,0,7);ctx.arc(6,-6,3.5,0,7);ctx.fill();
+  ctx.fillStyle='#021a12';ctx.beginPath();ctx.arc(-6,-5,1.8,0,7);ctx.arc(6,-5,1.8,0,7);ctx.fill();
+  // 입(받는 중)
+  ctx.fillStyle='#021a12';ctx.beginPath();ctx.ellipse(0,8,5,3,0,0,7);ctx.fill();
+  ctx.restore();
+}
+
+// 입력: 드래곤 이동 + 탭으로 단어 잡기
+function pointerMove(clientX){ if(state==='play') dragon.x=Math.max(30,Math.min(W-30,clientX)); }
+cv.addEventListener('mousemove',e=>pointerMove(e.clientX));
+cv.addEventListener('touchmove',e=>{e.preventDefault();pointerMove(e.touches[0].clientX);},{passive:false});
+// 단어 탭 잡기
+function tryTap(cx,cy){
+  if(state!=='play')return;
+  for(const w of words){ if(w.caught)continue;
+    if(Math.abs(cx-w.x)<60 && Math.abs(cy-w.y)<28){ catchWord(w); return; } }
+}
+cv.addEventListener('click',e=>tryTap(e.clientX,e.clientY));
+cv.addEventListener('touchstart',e=>{const t=e.touches[0];tryTap(t.clientX,t.clientY);pointerMove(t.clientX);},{passive:true});
+
+// 드래곤이 단어에 닿으면 자동으로 잡기 (이동 캐치)
+setInterval(()=>{
+  if(state!=='play')return;
+  for(const w of words){ if(w.caught)continue;
+    if(Math.abs(dragon.x-w.x)<40 && Math.abs(dragon.y-w.y)<34){ catchWord(w); } }
+},60);
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('retryBtn').onclick=startGame;
+document.getElementById('toMenu').onclick=()=>{state='menu';
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');};
+
+// 음소거 버튼
+(function(){ var b=document.getElementById('muteBtn');
+  if(b){ b.onclick=function(){ SFX.resume(); var m=SFX.toggle(); b.textContent = m ? '🔇' : '🔊'; }; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>태양계 탐험대 · Solar Explorer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; font-family:'Trebuchet MS',system-ui,sans-serif; background:#0a0420; color:#fff; user-select:none; }
+  #game { position:relative; width:100vw; height:100vh; overflow:hidden;
+    background:radial-gradient(circle at 50% 30%, #2d1b5e 0%, #1a0a3e 55%, #0a0420 100%); }
+  canvas { display:block; width:100%; height:100%; }
+  .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; background:rgba(10,4,32,0.93); backdrop-filter:blur(8px); z-index:50; }
+  .hidden { display:none !important; }
+  h1 { font-size:clamp(26px,7vw,42px); font-weight:900; letter-spacing:2px; margin-bottom:6px;
+    background:linear-gradient(135deg,#fff,#FFD24D); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { color:#FF8A3D; letter-spacing:4px; font-size:12px; margin-bottom:28px; }
+  .char-grid { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:560px; margin-bottom:24px; }
+  .char-card { width:96px; padding:12px 8px; border-radius:14px; cursor:pointer; background:rgba(255,255,255,0.04);
+    border:2px solid rgba(255,255,255,0.12); transition:all 0.2s; }
+  .char-card:hover { transform:translateY(-4px); }
+  .char-card.sel { border-color:var(--ac); box-shadow:0 0 20px var(--gl); background:rgba(255,255,255,0.08); }
+  .char-card svg { width:52px; height:60px; }
+  .char-card .nm { font-size:12px; font-weight:800; margin-top:6px; letter-spacing:1px; }
+  .char-card .ro { font-size:9px; color:#888; margin-top:2px; }
+  .btn { padding:14px 40px; border-radius:30px; cursor:pointer; font-weight:900; font-size:17px; letter-spacing:1px;
+    border:none; background:linear-gradient(135deg,#FF8A3D,#FFD24D); color:#0a0420; box-shadow:0 8px 24px rgba(255,138,61,0.4); transition:all 0.2s; }
+  .btn:hover { transform:scale(1.05); } .btn:active { transform:scale(0.98); }
+  .label { font-size:11px; letter-spacing:3px; color:#666; margin-bottom:12px; }
+  #hud { position:absolute; top:0; left:0; right:0; padding:14px 18px; display:flex; justify-content:space-between; z-index:20; pointer-events:none; }
+  .hud-box { background:rgba(26,10,62,0.7); border:1px solid rgba(255,138,61,0.4); border-radius:12px; padding:8px 14px; backdrop-filter:blur(4px); }
+  .hud-box .k { font-size:9px; letter-spacing:2px; color:#FF8A3D; } .hud-box .v { font-size:20px; font-weight:900; }
+  .hearts { font-size:18px; }
+  /* 퀴즈 패널 */
+  #quiz { position:absolute; left:50%; bottom:24px; transform:translateX(-50%); width:calc(100% - 32px); max-width:480px;
+    z-index:25; background:rgba(26,10,62,0.95); border:2px solid #FF8A3D; border-radius:20px; padding:18px 18px 16px;
+    box-shadow:0 0 30px rgba(255,138,61,0.3); }
+  #quiz.hidden { display:none; }
+  #quizPlanet { font-size:11px; letter-spacing:2px; color:#FFD24D; text-align:center; margin-bottom:6px; }
+  #quizQ { font-size:17px; font-weight:800; text-align:center; margin-bottom:14px; line-height:1.4; }
+  .opt { display:block; width:100%; padding:13px 16px; margin-bottom:8px; border-radius:12px; cursor:pointer;
+    font-size:15px; font-weight:700; text-align:left; border:1.5px solid rgba(255,138,61,0.4);
+    background:rgba(255,255,255,0.05); color:#fff; transition:all 0.15s; }
+  .opt:hover { background:rgba(255,138,61,0.15); }
+  .opt.correct { background:#1FE3A0 !important; border-color:#1FE3A0; color:#0a0420; }
+  .opt.wrong { background:#FF4D6D !important; border-color:#FF4D6D; }
+  #factPop { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:30; max-width:340px;
+    background:rgba(26,10,62,0.97); border:2px solid #FFD24D; border-radius:18px; padding:22px; text-align:center;
+    box-shadow:0 0 40px rgba(255,210,77,0.4); }
+  #factPop.hidden { display:none; }
+  #factPop .ico { font-size:40px; margin-bottom:10px; }
+  #factPop .tt { font-size:18px; font-weight:900; color:#FFD24D; margin-bottom:8px; }
+  #factPop .tx { font-size:14px; color:#ccc; line-height:1.6; margin-bottom:16px; }
+  .final-stat { display:flex; gap:24px; margin:18px 0 26px; }
+  .final-stat .n { font-size:32px; font-weight:900; color:#FFD24D; } .final-stat .l { font-size:11px; color:#888; }
+  .back { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:20; background:rgba(26,10,62,0.7);
+    border:1px solid rgba(255,138,61,0.4); border-radius:10px; padding:6px 12px; font-size:11px; color:#FF8A3D; cursor:pointer; }
+  #progress { position:absolute; top:56px; left:50%; transform:translateX(-50%); z-index:20; display:flex; gap:5px; max-width:88vw; flex-wrap:wrap; justify-content:center; }
+  #progress .dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.2); border:1px solid #FF8A3D; }
+  #progress .dot.done { background:#FFD24D; }
+  #progress .dot.cur { background:#FF8A3D; box-shadow:0 0 8px #FF8A3D; }
+  #muteBtn { position:absolute; top:14px; right:14px; z-index:60; width:38px; height:38px; border-radius:10px;
+    background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+</style>
+</head>
+<body>
+<div id="game">
+  <button id="muteBtn" title="소리 켜기/끄기">🔊</button>
+  <canvas id="cv"></canvas>
+  <div id="start" class="overlay">
+    <div class="sub">SCIENCE · SOLAR SYSTEM</div>
+    <h1>태양계 탐험대</h1>
+    <div class="label">탐험가 선택</div>
+    <div class="char-grid" id="charGrid"></div>
+    <p style="color:#888;font-size:13px;max-width:380px;margin-bottom:24px;line-height:1.6">
+      우주선을 조종해 8개 행성을 탐험하세요. 각 행성의 퀴즈를 맞히면 다음 행성으로 워프합니다!</p>
+    <button class="btn" id="startBtn">탐험 시작</button>
+  </div>
+  <div id="hud" class="hidden">
+    <div class="hud-box"><div class="k">SCORE</div><div class="v" id="score">0</div></div>
+    <div class="hud-box" style="text-align:center"><div class="k">PLANET</div><div class="v" id="planetN" style="font-size:15px">수성</div></div>
+    <div class="hud-box" style="text-align:right"><div class="k">FUEL</div><div class="hearts" id="hearts">⛽⛽⛽</div></div>
+  </div>
+  <div id="progress" class="hidden"></div>
+  <div id="quiz" class="hidden">
+    <div id="quizPlanet">🪐 수성 · MERCURY</div>
+    <div id="quizQ">질문</div>
+    <div id="opts"></div>
+  </div>
+  <div id="factPop" class="hidden">
+    <div class="ico" id="factIco">🪐</div>
+    <div class="tt" id="factTt">정답!</div>
+    <div class="tx" id="factTx">행성 정보</div>
+    <button class="btn" id="factNext" style="padding:10px 28px;font-size:15px">다음 행성 →</button>
+  </div>
+  <div id="over" class="overlay hidden">
+    <div class="sub" id="overTitle">탐험 종료</div>
+    <h1 id="overName">결과</h1>
+    <div class="final-stat">
+      <div><div class="n" id="fScore">0</div><div class="l">점수</div></div>
+      <div><div class="n" id="fPlanets">0</div><div class="l">탐험 행성</div></div>
+      <div><div class="n" id="fCorrect">0</div><div class="l">정답</div></div>
+    </div>
+    <button class="btn" id="retryBtn">다시 탐험</button>
+    <button class="back" id="toMenu">← 탐험가 선택</button>
+  </div>
+</div>
+<script>
+/* ===== 공통 사운드 엔진 (Web Audio API, 외부 파일 불필요) ===== */
+const SFX = (()=>{
+  let ctx=null, muted=false;
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return ctx; }
+  function tone(freq,dur,type='sine',vol=0.2,delay=0){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime+delay;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+  function slide(f1,f2,dur,type='sine',vol=0.2){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  function noise(dur,vol=0.15){
+    const a=ac(); if(!a||muted) return;
+    const buf=a.createBuffer(1,a.sampleRate*dur,a.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const s=a.createBufferSource(); s.buffer=buf;
+    const g=a.createGain(); g.gain.setValueAtTime(vol,a.currentTime);
+    const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=800;
+    s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  }
+  return {
+    correct(){ tone(660,0.08,'square',0.15); tone(880,0.12,'square',0.15,0.07); },
+    wrong(){ slide(220,90,0.3,'sawtooth',0.18); },
+    combo(n){ const base=520+Math.min(n,12)*40; tone(base,0.08,'triangle',0.18); tone(base*1.5,0.1,'triangle',0.15,0.06); },
+    gold(){ tone(784,0.08,'triangle',0.18); tone(988,0.08,'triangle',0.18,0.07); tone(1319,0.14,'triangle',0.18,0.14); },
+    shoot(){ slide(880,330,0.12,'square',0.12); },
+    boom(){ noise(0.3,0.18); slide(160,50,0.3,'sawtooth',0.12); },
+    warp(){ slide(330,1320,0.5,'sine',0.14); },
+    click(){ tone(440,0.05,'square',0.12); },
+    win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'triangle',0.18,i*0.12)); },
+    lose(){ [392,330,262].forEach((f,i)=>tone(f,0.25,'sine',0.18,i*0.14)); },
+    toggle(){ muted=!muted; return muted; },
+    isMuted(){ return muted; },
+    resume(){ const a=ac(); if(a&&a.state==='suspended') a.resume(); }
+  };
+})();
+
+const CHARS=[
+  {id:'stellan',nm:'STELLAN',ro:'표준',ac:'#FF8A3D',gl:'#FF8A3Daa',perk:'균형잡힌 탐험가',svg:svgStellan},
+  {id:'calc',nm:'CALC-9',ro:'분석',ac:'#7B6CFF',gl:'#7B6CFFaa',perk:'오답해도 연료 보존(1회)',svg:svgCalc},
+  {id:'voxa',nm:'VOXA',ro:'점수+',ac:'#1FE3A0',gl:'#1FE3A0aa',perk:'정답 점수 2배',svg:svgVoxa},
+  {id:'gaia',nm:'GAIA',ro:'연료+',ac:'#FF5C9D',gl:'#FF5C9Daa',perk:'연료 4칸으로 시작',svg:svgGaia},
+  {id:'prism',nm:'PRISM',ro:'정밀',ac:'#FFD23D',gl:'#FFD23Daa',perk:'오답 보기 1개 제거 표시',svg:svgPrism},
+];
+function svgStellan(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="22" rx="16" ry="18" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/><ellipse cx="30" cy="22" rx="11" ry="13" fill="#0d2444"/><circle cx="25" cy="21" r="2.5" fill="#FFD24D"/><circle cx="35" cy="21" r="2.5" fill="#FFD24D"/><path d="M25 28 Q30 32 35 28" stroke="#FFD24D" stroke-width="1.5" fill="none"/><rect x="18" y="40" width="24" height="20" rx="8" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/><circle cx="30" cy="50" r="6" fill="#0d0a22" stroke="#FF8A3D"/></svg>`;}
+function svgCalc(){return `<svg viewBox="0 0 60 70"><rect x="14" y="26" width="32" height="34" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="18" y="8" width="24" height="22" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="22" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="22" y="18" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="18" width="7" height="2" fill="#4DD9FF"/></svg>`;}
+function svgVoxa(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="42" rx="16" ry="20" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="14" ry="13" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><path d="M20 14 L17 4 Q22 9 24 14Z" fill="#0d4630" stroke="#1FE3A0"/><path d="M40 14 L43 4 Q38 9 36 14Z" fill="#0d4630" stroke="#1FE3A0"/><ellipse cx="25" cy="23" rx="3" ry="4" fill="#9CFF57"/><ellipse cx="35" cy="23" rx="3" ry="4" fill="#9CFF57"/></svg>`;}
+function svgGaia(){return `<svg viewBox="0 0 60 70"><path d="M16 40 Q12 58 30 62 Q48 58 44 40Z" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="16" ry="17" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><path d="M16 22 Q10 6 18 4 Q22 14 20 22Z" fill="#0a5230" stroke="#7CFF9E"/><path d="M44 22 Q50 6 42 4 Q38 14 40 22Z" fill="#0a5230" stroke="#7CFF9E"/><ellipse cx="25" cy="24" rx="3" ry="4" fill="#ffb3d4"/><ellipse cx="35" cy="24" rx="3" ry="4" fill="#ffb3d4"/></svg>`;}
+function svgPrism(){return `<svg viewBox="0 0 60 70"><polygon points="30,30 46,42 42,62 18,62 14,42" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="30,4 42,8 46,22 38,34 22,34 14,22 18,8" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="22,18 30,14 30,24" fill="#FFD23D"/><polygon points="38,18 30,14 30,24" fill="#FFD23D"/></svg>`;}
+
+/* 11개 천체 — 각 천체마다 여러 퀴즈(매번 랜덤 출제) + 여러 사실 */
+const PLANETS=[
+  {nm:'태양',en:'SUN',color:'#ffcf3a',r:46,ico:'☀',
+   facts:['태양은 별이에요! 지구보다 약 109배나 크고, 태양계 전체 질량의 99.8%를 차지해요.',
+          '태양 표면 온도는 약 5,500도, 중심은 무려 1,500만 도에 달해요!'],
+   quizzes:[
+     {q:'태양계의 중심에 있는 천체는?',opts:['지구','달','태양','목성'],ans:2},
+     {q:'태양은 무엇으로 분류되나요?',opts:['행성','별','위성','혜성'],ans:1},
+     {q:'태양계 질량의 대부분을 차지하는 것은?',opts:['목성','태양','토성','지구'],ans:1}]},
+  {nm:'수성',en:'MERCURY',color:'#a59886',r:18,ico:'☿',
+   facts:['태양에 가장 가까운 행성! 낮엔 430도, 밤엔 영하 180도로 온도 차가 엄청나요.',
+          '태양계에서 가장 작은 행성이고, 1년(공전)이 88일밖에 안 돼요.'],
+   quizzes:[
+     {q:'태양에서 가장 가까운 행성은?',opts:['수성','금성','지구','화성'],ans:0},
+     {q:'태양계에서 가장 작은 행성은?',opts:['화성','수성','금성','명왕성'],ans:1},
+     {q:'공전 주기가 가장 짧은(1년이 88일) 행성은?',opts:['수성','지구','금성','화성'],ans:0}]},
+  {nm:'금성',en:'VENUS',color:'#e8c170',r:26,ico:'♀',
+   facts:['태양계에서 가장 뜨거운 행성이에요. 두꺼운 이산화탄소 구름이 열을 가둬요!',
+          '금성은 자전이 아주 느려서, 하루가 1년보다 길어요. 또 거꾸로(반대로) 돌아요.'],
+   quizzes:[
+     {q:'태양계에서 표면이 가장 뜨거운 행성은?',opts:['수성','금성','목성','토성'],ans:1},
+     {q:'\'지구의 쌍둥이\'라 불릴 만큼 크기가 비슷한 행성은?',opts:['화성','금성','수성','천왕성'],ans:1},
+     {q:'하루(자전)가 1년(공전)보다 긴 행성은?',opts:['금성','지구','목성','화성'],ans:0}]},
+  {nm:'지구',en:'EARTH',color:'#4d8fcc',r:27,ico:'🌍',
+   facts:['우리가 사는 행성! 액체 상태의 물과 생명체가 존재하는 유일한 행성이에요.',
+          '지구의 70%는 바다로 덮여 있어서 우주에서 보면 푸르게 보여요.'],
+   quizzes:[
+     {q:'생명체가 사는 것으로 알려진 행성은?',opts:['화성','금성','지구','수성'],ans:2},
+     {q:'표면의 약 70%가 물로 덮인 행성은?',opts:['해왕성','지구','금성','화성'],ans:1},
+     {q:'우주에서 푸른 구슬처럼 보이는 행성은?',opts:['천왕성','지구','해왕성','금성'],ans:1}]},
+  {nm:'달',en:'MOON',color:'#cfcfcf',r:16,ico:'🌕',
+   facts:['달은 지구의 위성이에요. 지구 주위를 약 27일에 한 바퀴 돌아요.',
+          '달에는 공기가 없어서 발자국이 수백만 년 동안 남아 있을 수 있어요!'],
+   quizzes:[
+     {q:'지구 주위를 도는 위성은?',opts:['화성','달','금성','태양'],ans:1},
+     {q:'밀물과 썰물(조수)에 가장 큰 영향을 주는 천체는?',opts:['달','목성','태양','화성'],ans:0},
+     {q:'사람이 처음으로 발을 디딘 지구 밖 천체는?',opts:['화성','달','금성','수성'],ans:1}]},
+  {nm:'화성',en:'MARS',color:'#c1440e',r:22,ico:'♂',
+   facts:['붉은 행성! 산화철(녹) 때문에 붉게 보여요. 태양계에서 가장 큰 화산이 있어요.',
+          '화성에는 올림푸스 몬스라는, 에베레스트보다 약 3배 높은 화산이 있어요.'],
+   quizzes:[
+     {q:'\'붉은 행성\'이라고 불리는 행성은?',opts:['목성','화성','토성','천왕성'],ans:1},
+     {q:'태양계에서 가장 큰 화산이 있는 행성은?',opts:['금성','화성','목성','지구'],ans:1},
+     {q:'표면이 산화철(녹) 때문에 붉게 보이는 행성은?',opts:['화성','수성','토성','해왕성'],ans:0}]},
+  {nm:'목성',en:'JUPITER',color:'#d8a06a',r:42,ico:'♃',
+   facts:['태양계에서 가장 큰 행성! 지구가 1,300개 들어가요. 거대한 붉은 점(대적반)이 유명해요.',
+          '대적반은 수백 년째 부는 거대한 폭풍으로, 지구가 통째로 들어갈 만큼 커요.'],
+   quizzes:[
+     {q:'태양계에서 가장 큰 행성은?',opts:['토성','목성','지구','해왕성'],ans:1},
+     {q:'\'대적반\'이라는 거대한 폭풍이 있는 행성은?',opts:['목성','토성','화성','금성'],ans:0},
+     {q:'위성(달)을 가장 많이 거느린 행성 중 하나는?',opts:['수성','목성','지구','금성'],ans:1}]},
+  {nm:'토성',en:'SATURN',color:'#e3d9a6',r:38,ico:'♄',
+   facts:['아름다운 고리로 유명한 행성! 고리는 대부분 얼음과 암석 조각으로 이루어져 있어요.',
+          '토성은 밀도가 아주 낮아서, 충분히 큰 물이 있다면 물에 뜰 수 있어요!'],
+   quizzes:[
+     {q:'뚜렷한 고리를 가진 것으로 가장 유명한 행성은?',opts:['목성','토성','천왕성','화성'],ans:1},
+     {q:'밀도가 낮아 물에 뜰 수도 있다는 행성은?',opts:['지구','토성','수성','화성'],ans:1},
+     {q:'얼음과 암석으로 된 고리로 유명한 행성은?',opts:['토성','해왕성','금성','수성'],ans:0}]},
+  {nm:'천왕성',en:'URANUS',color:'#9fe3e0',r:32,ico:'⛢',
+   facts:['옆으로 누워서 도는 특이한 행성! 메탄 가스 때문에 청록색으로 보여요.',
+          '천왕성은 태양계에서 가장 추운 대기를 가진 행성 중 하나예요.'],
+   quizzes:[
+     {q:'옆으로 누운 채 자전하는 청록색 행성은?',opts:['해왕성','천왕성','금성','수성'],ans:1},
+     {q:'메탄 때문에 청록색으로 보이는 행성은?',opts:['천왕성','화성','토성','수성'],ans:0},
+     {q:'자전축이 거의 90도로 누워 있는 행성은?',opts:['지구','천왕성','목성','금성'],ans:1}]},
+  {nm:'해왕성',en:'NEPTUNE',color:'#3b5fd4',r:31,ico:'♆',
+   facts:['태양에서 가장 먼 행성! 태양계에서 바람이 가장 강하게 부는 행성이에요.',
+          '해왕성의 바람은 시속 2,000km까지 불어요 — 지구 태풍의 몇 배예요!'],
+   quizzes:[
+     {q:'태양에서 가장 멀리 있는 행성은?',opts:['천왕성','토성','해왕성','목성'],ans:2},
+     {q:'태양계에서 바람이 가장 강한 행성은?',opts:['해왕성','목성','지구','화성'],ans:0},
+     {q:'짙은 파란색을 띠는, 가장 바깥쪽 행성은?',opts:['천왕성','해왕성','지구','금성'],ans:1}]},
+  {nm:'명왕성',en:'PLUTO',color:'#c9a98a',r:14,ico:'🪨',
+   facts:['한때 9번째 행성이었지만, 2006년부터 \'왜소행성\'으로 분류돼요.',
+          '명왕성은 달보다도 작아요. 태양을 한 바퀴 도는 데 248년이나 걸려요!'],
+   quizzes:[
+     {q:'2006년에 \'왜소행성\'으로 재분류된 천체는?',opts:['명왕성','화성','수성','달'],ans:0},
+     {q:'현재 행성이 아니라 왜소행성으로 분류되는 것은?',opts:['천왕성','명왕성','해왕성','금성'],ans:1},
+     {q:'태양을 한 바퀴 도는 데 248년이나 걸리는 천체는?',opts:['명왕성','목성','화성','지구'],ans:0}]},
+  {nm:'소행성대',en:'ASTEROID BELT',color:'#8a7a66',r:24,ico:'🌑',
+   facts:['화성과 목성 사이에 있는, 수많은 암석 덩어리들이 모인 띠예요.',
+          '소행성대에서 가장 큰 천체는 \'세레스\'인데, 이것도 왜소행성으로 분류돼요.'],
+   quizzes:[
+     {q:'소행성대는 어느 두 행성 사이에 있나요?',opts:['지구와 화성','화성과 목성','목성과 토성','금성과 지구'],ans:1},
+     {q:'수많은 암석 덩어리가 띠처럼 모여 있는 곳은?',opts:['소행성대','오르트 구름','은하수','대적반'],ans:0},
+     {q:'소행성대에서 가장 큰 천체(왜소행성)는?',opts:['세레스','명왕성','달','이오'],ans:0}]},
+  {nm:'혜성',en:'COMET',color:'#aee9ff',r:18,ico:'☄',
+   facts:['얼음과 먼지로 된 천체로, 태양에 가까워지면 긴 꼬리가 생겨요.',
+          '핼리 혜성은 약 76년마다 지구 근처로 돌아오는 유명한 혜성이에요.'],
+   quizzes:[
+     {q:'태양에 가까워지면 긴 꼬리가 생기는 천체는?',opts:['혜성','위성','왜소행성','별'],ans:0},
+     {q:'혜성은 주로 무엇으로 이루어져 있나요?',opts:['금속','얼음과 먼지','용암','기체만'],ans:1},
+     {q:'약 76년마다 지구 근처로 돌아오는 유명한 혜성은?',opts:['핼리 혜성','세레스','대적반','오로라'],ans:0}]},
+  {nm:'우주정거장',en:'ISS',color:'#d6e4f0',r:20,ico:'🛰',
+   facts:['국제우주정거장(ISS)은 지구를 약 90분에 한 바퀴 도는 거대한 실험실이에요.',
+          'ISS에서는 무중력 상태라 우주비행사들이 둥둥 떠다니며 생활해요!'],
+   quizzes:[
+     {q:'지구 궤도를 돌며 과학 실험을 하는 거대 구조물은?',opts:['국제우주정거장','달','혜성','소행성'],ans:0},
+     {q:'ISS가 지구를 한 바퀴 도는 데 걸리는 시간은?',opts:['약 24시간','약 90분','약 1주일','약 1년'],ans:1},
+     {q:'우주정거장 안에서 우주비행사가 둥둥 뜨는 이유는?',opts:['바람','무중력','자석','전기'],ans:1}]},
+];
+
+let selChar=CHARS[0];
+const charGrid=document.getElementById('charGrid');
+CHARS.forEach((c,i)=>{const d=document.createElement('div');d.className='char-card'+(i===0?' sel':'');
+  d.style.setProperty('--ac',c.ac);d.style.setProperty('--gl',c.gl);
+  d.innerHTML=c.svg()+`<div class="nm" style="color:${c.ac}">${c.nm}</div><div class="ro">${c.ro}</div>`;
+  d.onclick=()=>{selChar=c;document.querySelectorAll('.char-card').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');};
+  charGrid.appendChild(d);});
+
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+let state='menu';
+let stars=[], particles=[];
+let score=0,fuel=3,maxFuel=3,planetIdx=0,correctCount=0,planetsVisited=0;
+let calcShield=false; // CALC 1회 보호
+let curQuiz=null, curFact='';
+let ship={x:0,y:0,tx:0,ty:0,warping:false,angle:0};
+let planet={x:0,y:0,r:30,rot:0}, lastT=0, transitioning=false;
+
+function initStars(){stars=[];for(let i=0;i<90;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5+0.3,s:Math.random()*0.2+0.05,tw:Math.random()*7});}
+
+function startGame(){
+  SFX.resume();
+  state='play';score=0;planetIdx=0;correctCount=0;planetsVisited=0;
+  maxFuel=selChar.id==='gaia'?4:3; fuel=maxFuel;
+  calcShield=(selChar.id==='calc');
+  initStars();particles=[];
+  ship.x=W/2;ship.y=H-120;ship.warping=false;
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('progress').classList.remove('hidden');
+  document.getElementById('score').textContent='0';
+  buildProgress(); updateFuel();
+  arriveAtPlanet();
+  lastT=performance.now();requestAnimationFrame(loop);
+}
+
+function buildProgress(){
+  const p=document.getElementById('progress');p.innerHTML='';
+  PLANETS.forEach((_,i)=>{const d=document.createElement('div');d.className='dot'+(i<planetIdx?' done':i===planetIdx?' cur':'');p.appendChild(d);});
+}
+function updateFuel(){document.getElementById('hearts').textContent='⛽'.repeat(Math.max(0,fuel))+'▢'.repeat(Math.max(0,maxFuel-fuel));}
+
+function arriveAtPlanet(){
+  const pl=PLANETS[planetIdx];
+  planet={x:W/2,y:H*0.36,r:pl.r,rot:0,color:pl.color};
+  document.getElementById('planetN').textContent=pl.nm;
+  buildProgress();
+  // 퀴즈 표시 (살짝 딜레이)
+  setTimeout(showQuiz,700);
+}
+
+function showQuiz(){
+  if(state!=='play')return;
+  const pl=PLANETS[planetIdx];
+  // 이 행성의 퀴즈 중 하나를 랜덤 출제, 사실도 랜덤
+  curQuiz = pl.quizzes[Math.floor(Math.random()*pl.quizzes.length)];
+  curFact = pl.facts[Math.floor(Math.random()*pl.facts.length)];
+  document.getElementById('quizPlanet').textContent=`${pl.ico} ${pl.nm} · ${pl.en}`;
+  document.getElementById('quizQ').textContent=curQuiz.q;
+  const wrap=document.getElementById('opts');wrap.innerHTML='';
+  // PRISM 능력: 오답 1개 미리 흐리게
+  let removed=-1;
+  if(selChar.id==='prism'){ do{removed=Math.floor(Math.random()*4);}while(removed===curQuiz.ans); }
+  curQuiz.opts.forEach((o,i)=>{
+    const b=document.createElement('button');b.className='opt';b.textContent=o;
+    if(i===removed){b.style.opacity='0.3';b.style.textDecoration='line-through';}
+    b.onclick=()=>answer(i,b);
+    wrap.appendChild(b);
+  });
+  document.getElementById('quiz').classList.remove('hidden');
+}
+
+function answer(i,btn){
+  if(transitioning)return;
+  const opts=document.querySelectorAll('.opt');
+  if(i===curQuiz.ans){
+    transitioning=true;
+    btn.classList.add('correct');
+    SFX.correct();
+    score+=Math.round(150*(selChar.id==='voxa'?2:1));
+    correctCount++; planetsVisited++;
+    document.getElementById('score').textContent=score;
+    burstPlanet();
+    setTimeout(()=>{ document.getElementById('quiz').classList.add('hidden'); showFact(true); },500);
+  } else {
+    btn.classList.add('wrong');
+    SFX.wrong();
+    opts[curQuiz.ans].classList.add('correct');
+    // CALC 보호막
+    if(calcShield){ calcShield=false; }
+    else { fuel--; updateFuel(); }
+    transitioning=true;
+    setTimeout(()=>{
+      document.getElementById('quiz').classList.add('hidden');
+      if(fuel<=0){ planetsVisited++; showFact(false,true); }
+      else { planetsVisited++; showFact(false); }
+    },900);
+  }
+}
+
+function showFact(correct, gameover){
+  const pl=PLANETS[planetIdx];
+  const fp=document.getElementById('factPop');
+  document.getElementById('factIco').textContent=pl.ico;
+  document.getElementById('factTt').textContent=correct?`${pl.nm} 탐험 성공!`:`${pl.nm} 정보`;
+  document.getElementById('factTt').style.color=correct?'#1FE3A0':'#FFD24D';
+  document.getElementById('factTx').textContent=curFact;
+  const nextBtn=document.getElementById('factNext');
+  if(gameover){ nextBtn.textContent='결과 보기'; }
+  else if(planetIdx>=PLANETS.length-1){ nextBtn.textContent='탐험 완료!'; }
+  else { nextBtn.textContent='다음 행성 →'; }
+  nextBtn.onclick=()=>{
+    fp.classList.add('hidden');
+    transitioning=false;
+    if(gameover){ endGame(); return; }
+    if(planetIdx>=PLANETS.length-1){ endGame(true); return; }
+    planetIdx++; warpToNext();
+  };
+  fp.classList.remove('hidden');
+}
+
+function warpToNext(){
+  ship.warping=true;
+  SFX.warp();
+  // 워프 파티클
+  for(let i=0;i<30;i++) particles.push({x:ship.x,y:ship.y,vx:(Math.random()-0.5)*2,vy:Math.random()*6+2,life:1,color:selChar.ac,size:Math.random()*3+1});
+  setTimeout(()=>{ ship.warping=false; arriveAtPlanet(); },600);
+}
+
+function burstPlanet(){
+  for(let i=0;i<24;i++){const a=Math.random()*7,s=Math.random()*3+1;
+    particles.push({x:planet.x,y:planet.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:planet.color,size:Math.random()*3+1});}
+}
+
+function endGame(complete){
+  state='over';
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('progress').classList.add('hidden');
+  const ov=document.getElementById('over');ov.classList.remove('hidden');
+  document.getElementById('overName').textContent=selChar.nm;
+  document.getElementById('overName').style.color=selChar.ac;
+  document.getElementById('fScore').textContent=score;
+  document.getElementById('fPlanets').textContent=planetsVisited;
+  document.getElementById('fCorrect').textContent=correctCount;
+  document.getElementById('overTitle').textContent= complete?'🏆 태양계 정복!':'탐험 종료';
+  const key='solar_best_'+selChar.id,prev=+(localStorage.getItem(key)||0);
+  if(score>prev){localStorage.setItem(key,score);
+    if(!complete)document.getElementById('overTitle').textContent='★ NEW BEST! ★';}
+  if(complete) SFX.win(); else SFX.lose();
+}
+
+function loop(t){if(state!=='play')return;const dt=Math.min(t-lastT,50);lastT=t;update(dt);render();requestAnimationFrame(loop);}
+
+function update(dt){
+  stars.forEach(s=>{s.y+=s.s*dt*0.1*(ship.warping?8:1);if(s.y>H){s.y=0;s.x=Math.random()*W;}s.tw+=0.05;});
+  planet.rot+=0.003*dt;
+  // 우주선 떠다님
+  ship.y=H-120+Math.sin(performance.now()*0.002)*6;
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.02;});
+  particles=particles.filter(p=>p.life>0);
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // 별
+  stars.forEach(s=>{const tw=0.5+0.5*Math.sin(s.tw);ctx.globalAlpha=s.r/1.8*tw;ctx.fillStyle='#fff';
+    if(ship.warping){ctx.strokeStyle='#fff';ctx.lineWidth=s.r;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x,s.y+20);ctx.stroke();}
+    else{ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}});
+  ctx.globalAlpha=1;
+  if(!ship.warping) drawPlanet();
+  drawShip();
+  particles.forEach(p=>{ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,7);ctx.fill();});
+  ctx.globalAlpha=1;
+}
+
+function drawPlanet(){
+  const pl=PLANETS[planetIdx];
+  ctx.save();ctx.translate(planet.x,planet.y);
+  // 후광
+  const g=ctx.createRadialGradient(0,0,planet.r,0,0,planet.r*2.2);
+  g.addColorStop(0,planet.color+'55');g.addColorStop(1,'transparent');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,planet.r*2.2,0,7);ctx.fill();
+  // 본체
+  const bg=ctx.createRadialGradient(-planet.r*0.3,-planet.r*0.3,planet.r*0.2,0,0,planet.r);
+  bg.addColorStop(0,lighten(planet.color));bg.addColorStop(1,planet.color);
+  ctx.fillStyle=bg;ctx.beginPath();ctx.arc(0,0,planet.r,0,7);ctx.fill();
+  // 표면 무늬
+  ctx.save();ctx.rotate(planet.rot);ctx.globalAlpha=0.25;ctx.fillStyle='#000';
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(Math.cos(i*2)*planet.r*0.3,Math.sin(i*2.5)*planet.r*0.3,planet.r*0.4,planet.r*0.15,i,0,7);ctx.fill();}
+  ctx.restore();
+  // 토성 고리
+  if(pl.en==='SATURN'){ctx.strokeStyle=pl.color;ctx.lineWidth=4;ctx.globalAlpha=0.7;
+    ctx.beginPath();ctx.ellipse(0,0,planet.r*1.7,planet.r*0.5,0.3,0,7);ctx.stroke();ctx.globalAlpha=1;}
+  // 혜성 꼬리
+  if(pl.en==='COMET'){
+    const tg=ctx.createLinearGradient(0,0,planet.r*4,-planet.r*1.5);
+    tg.addColorStop(0,pl.color+'cc');tg.addColorStop(1,'transparent');
+    ctx.fillStyle=tg;ctx.beginPath();ctx.moveTo(0,-planet.r*0.6);
+    ctx.lineTo(planet.r*4,-planet.r*2.2);ctx.lineTo(planet.r*4,-planet.r*0.6);ctx.lineTo(0,planet.r*0.6);ctx.closePath();ctx.fill();}
+  // 소행성대: 주변에 작은 암석들
+  if(pl.en==='ASTEROID BELT'){ctx.fillStyle=lighten(pl.color);
+    for(let i=0;i<10;i++){const a=i/10*Math.PI*2+planet.rot;const rr=planet.r*(1.3+0.3*Math.sin(i*3));
+      ctx.beginPath();ctx.arc(Math.cos(a)*rr,Math.sin(a)*rr,2.5+Math.sin(i)*1.5,0,7);ctx.fill();}}
+  // ISS: 태양전지판 표시
+  if(pl.en==='ISS'){ctx.strokeStyle='#88aacc';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(-planet.r*1.8,0);ctx.lineTo(planet.r*1.8,0);ctx.stroke();
+    ctx.fillStyle='#3a5fa0';
+    ctx.fillRect(-planet.r*1.7,-planet.r*0.5,planet.r*0.7,planet.r);
+    ctx.fillRect(planet.r*1.0,-planet.r*0.5,planet.r*0.7,planet.r);}
+  ctx.restore();
+}
+function lighten(hex){const n=parseInt(hex.slice(1),16);let r=(n>>16)+50,g=((n>>8)&255)+50,b=(n&255)+50;
+  r=Math.min(255,r);g=Math.min(255,g);b=Math.min(255,b);return `rgb(${r},${g},${b})`;}
+
+function drawShip(){
+  ctx.save();ctx.translate(ship.x,ship.y);ctx.shadowColor=selChar.ac;ctx.shadowBlur=16;
+  ctx.fillStyle=selChar.ac;
+  ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(14,14);ctx.lineTo(0,8);ctx.lineTo(-14,14);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#FFD24D';ctx.beginPath();ctx.arc(0,-4,5,0,7);ctx.fill();
+  // 엔진
+  ctx.fillStyle='#FF8A3D';ctx.globalAlpha=0.7+Math.random()*0.3;
+  ctx.beginPath();ctx.moveTo(-5,12);ctx.lineTo(0,12+Math.random()*12+(ship.warping?30:8));ctx.lineTo(5,12);ctx.closePath();ctx.fill();
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('retryBtn').onclick=startGame;
+document.getElementById('toMenu').onclick=()=>{state='menu';
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');};
+
+// 음소거 버튼
+(function(){ var b=document.getElementById('muteBtn');
+  if(b){ b.onclick=function(){ SFX.resume(); var m=SFX.toggle(); b.textContent = m ? '🔇' : '🔊'; }; }
+})();
+</script>
+</body>
+</html>

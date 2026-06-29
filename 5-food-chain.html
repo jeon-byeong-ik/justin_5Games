@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>먹이사슬 퍼즐 · Food Chain</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; font-family:'Trebuchet MS',system-ui,sans-serif; background:#1a0512; color:#fff; user-select:none; }
+  #game { position:relative; width:100vw; height:100vh; overflow:hidden;
+    background:radial-gradient(circle at 50% 25%, #2e0a22 0%, #1a0a0d 60%, #1a0512 100%); }
+  .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; background:rgba(26,5,18,0.93); backdrop-filter:blur(8px); z-index:50; }
+  .hidden { display:none !important; }
+  h1 { font-size:clamp(26px,7vw,42px); font-weight:900; letter-spacing:2px; margin-bottom:6px;
+    background:linear-gradient(135deg,#fff,#7CFF9E); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { color:#FF5C9D; letter-spacing:4px; font-size:12px; margin-bottom:28px; }
+  .char-grid { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:560px; margin-bottom:24px; }
+  .char-card { width:96px; padding:12px 8px; border-radius:14px; cursor:pointer; background:rgba(255,255,255,0.04);
+    border:2px solid rgba(255,255,255,0.12); transition:all 0.2s; }
+  .char-card:hover { transform:translateY(-4px); }
+  .char-card.sel { border-color:var(--ac); box-shadow:0 0 20px var(--gl); background:rgba(255,255,255,0.08); }
+  .char-card svg { width:52px; height:60px; }
+  .char-card .nm { font-size:12px; font-weight:800; margin-top:6px; letter-spacing:1px; }
+  .char-card .ro { font-size:9px; color:#888; margin-top:2px; }
+  .btn { padding:14px 40px; border-radius:30px; cursor:pointer; font-weight:900; font-size:17px; letter-spacing:1px;
+    border:none; background:linear-gradient(135deg,#FF5C9D,#7CFF9E); color:#1a0512; box-shadow:0 8px 24px rgba(255,92,157,0.4); transition:all 0.2s; }
+  .btn:hover { transform:scale(1.05); } .btn:active { transform:scale(0.98); }
+  .label { font-size:11px; letter-spacing:3px; color:#666; margin-bottom:12px; }
+  #hud { position:absolute; top:0; left:0; right:0; padding:14px 18px; display:flex; justify-content:space-between; z-index:20; }
+  .hud-box { background:rgba(46,10,34,0.7); border:1px solid rgba(255,92,157,0.4); border-radius:12px; padding:8px 14px; backdrop-filter:blur(4px); }
+  .hud-box .k { font-size:9px; letter-spacing:2px; color:#FF5C9D; } .hud-box .v { font-size:20px; font-weight:900; }
+  /* 플레이 영역 */
+  #play { position:absolute; inset:0; display:none; flex-direction:column; z-index:10; padding-top:72px; }
+  #play.on { display:flex; }
+  #prompt { text-align:center; padding:8px 16px; }
+  #prompt .t { font-size:15px; color:#7CFF9E; font-weight:800; }
+  #prompt .s { font-size:12px; color:#888; margin-top:2px; }
+  /* 슬롯 영역 */
+  #slots { display:flex; justify-content:center; align-items:center; gap:4px; padding:14px 6px; flex-wrap:wrap; }
+  .slot { width:clamp(58px,17vw,80px); height:90px; border-radius:14px; border:2.5px dashed rgba(255,92,157,0.4);
+    background:rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; justify-content:center;
+    position:relative; transition:all 0.2s; }
+  .slot .lvlt { position:absolute; top:-9px; font-size:9px; background:#2e0a22; padding:1px 8px; border-radius:8px;
+    color:#FF5C9D; border:1px solid rgba(255,92,157,0.4); letter-spacing:1px; }
+  .slot.filled { border-style:solid; border-color:#7CFF9E; cursor:pointer; }
+  .slot.over { border-color:#FFD24D; background:rgba(255,210,77,0.1); transform:scale(1.05); }
+  .arrow { font-size:16px; color:#FF5C9D; }
+  /* 카드 */
+  #tray { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; padding:18px 12px; margin-top:auto; }
+  .card { width:clamp(60px,16vw,76px); height:88px; border-radius:14px; cursor:grab; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:rgba(46,10,34,0.9); border:2px solid rgba(124,255,158,0.5);
+    box-shadow:0 4px 14px rgba(0,0,0,0.4); transition:transform 0.1s; touch-action:none; }
+  .card:active { cursor:grabbing; }
+  .card.dragging { opacity:0.5; }
+  .card .emo { font-size:34px; line-height:1; }
+  .card .nm { font-size:11px; margin-top:5px; font-weight:700; }
+  .card.placed { opacity:0.3; pointer-events:none; }
+  #dragGhost { position:fixed; pointer-events:none; z-index:100; width:78px; height:90px; border-radius:14px;
+    display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(46,10,34,0.95);
+    border:2px solid #FFD24D; box-shadow:0 8px 24px rgba(0,0,0,0.6); }
+  #dragGhost .emo { font-size:34px; } #dragGhost .nm { font-size:11px; margin-top:5px; font-weight:700; }
+  #checkBtn { margin:6px auto 18px; }
+  #feedback { position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); z-index:30; max-width:340px;
+    background:rgba(46,10,34,0.97); border:2px solid #7CFF9E; border-radius:18px; padding:22px; text-align:center;
+    box-shadow:0 0 40px rgba(124,255,158,0.35); }
+  #feedback.hidden { display:none; }
+  #feedback .ico { font-size:40px; margin-bottom:8px; }
+  #feedback .tt { font-size:19px; font-weight:900; margin-bottom:8px; }
+  #feedback .tx { font-size:14px; color:#ccc; line-height:1.6; margin-bottom:16px; }
+  .final-stat { display:flex; gap:24px; margin:18px 0 26px; }
+  .final-stat .n { font-size:32px; font-weight:900; color:#7CFF9E; } .final-stat .l { font-size:11px; color:#888; }
+  .back { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:20; background:rgba(46,10,34,0.7);
+    border:1px solid rgba(255,92,157,0.4); border-radius:10px; padding:6px 12px; font-size:11px; color:#FF5C9D; cursor:pointer; }
+  #muteBtn { position:absolute; top:14px; right:14px; z-index:60; width:38px; height:38px; border-radius:10px;
+    background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.25); color:#fff; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+</style>
+</head>
+<body>
+<div id="game">
+  <button id="muteBtn" title="소리 켜기/끄기">🔊</button>
+  <div id="start" class="overlay">
+    <div class="sub">SCIENCE · ECOSYSTEM</div>
+    <h1>먹이사슬 퍼즐</h1>
+    <div class="label">수호자 선택</div>
+    <div class="char-grid" id="charGrid"></div>
+    <p style="color:#888;font-size:13px;max-width:380px;margin-bottom:24px;line-height:1.6">
+      생산자 → 1차 소비자 → 2차 소비자 → 최상위 포식자 순으로<br>카드를 끌어다 먹이사슬을 완성하세요!</p>
+    <button class="btn" id="startBtn">퍼즐 시작</button>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div class="hud-box"><div class="k">SCORE</div><div class="v" id="score">0</div></div>
+    <div class="hud-box" style="text-align:center"><div class="k">STAGE</div><div class="v" id="stage">1 / 6</div></div>
+    <div class="hud-box" style="text-align:right"><div class="k">LIFE</div><div class="v" id="hearts" style="font-size:16px">❤❤❤</div></div>
+  </div>
+
+  <div id="play">
+    <div id="prompt"><div class="t" id="promptT">초원 생태계</div><div class="s">카드를 탭하면 왼쪽부터 채워져요 · 놓은 칸을 탭하면 빠져요</div></div>
+    <div id="slots"></div>
+    <button class="btn" id="checkBtn" style="padding:11px 32px;font-size:15px">확인하기</button>
+    <div id="tray"></div>
+  </div>
+
+  <div id="dragGhost"><div class="emo"></div><div class="nm"></div></div>
+
+  <div id="feedback" class="hidden">
+    <div class="ico" id="fbIco">🌿</div>
+    <div class="tt" id="fbTt">정답!</div>
+    <div class="tx" id="fbTx">설명</div>
+    <button class="btn" id="fbNext" style="padding:10px 28px;font-size:15px">다음 →</button>
+  </div>
+
+  <div id="over" class="overlay hidden">
+    <div class="sub" id="overTitle">완료</div>
+    <h1 id="overName">결과</h1>
+    <div class="final-stat">
+      <div><div class="n" id="fScore">0</div><div class="l">점수</div></div>
+      <div><div class="n" id="fStages">0</div><div class="l">완성 스테이지</div></div>
+      <div><div class="n" id="fPerfect">0</div><div class="l">한번에 성공</div></div>
+    </div>
+    <button class="btn" id="retryBtn">다시 도전</button>
+    <button class="back" id="toMenu">← 수호자 선택</button>
+  </div>
+</div>
+<script>
+/* ===== 공통 사운드 엔진 (Web Audio API, 외부 파일 불필요) ===== */
+const SFX = (()=>{
+  let ctx=null, muted=false;
+  function ac(){ if(!ctx){ try{ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return ctx; }
+  function tone(freq,dur,type='sine',vol=0.2,delay=0){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime+delay;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  }
+  function slide(f1,f2,dur,type='sine',vol=0.2){
+    const a=ac(); if(!a||muted) return;
+    const t=a.currentTime;
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  function noise(dur,vol=0.15){
+    const a=ac(); if(!a||muted) return;
+    const buf=a.createBuffer(1,a.sampleRate*dur,a.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const s=a.createBufferSource(); s.buffer=buf;
+    const g=a.createGain(); g.gain.setValueAtTime(vol,a.currentTime);
+    const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=800;
+    s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  }
+  return {
+    correct(){ tone(660,0.08,'square',0.15); tone(880,0.12,'square',0.15,0.07); },
+    wrong(){ slide(220,90,0.3,'sawtooth',0.18); },
+    combo(n){ const base=520+Math.min(n,12)*40; tone(base,0.08,'triangle',0.18); tone(base*1.5,0.1,'triangle',0.15,0.06); },
+    gold(){ tone(784,0.08,'triangle',0.18); tone(988,0.08,'triangle',0.18,0.07); tone(1319,0.14,'triangle',0.18,0.14); },
+    shoot(){ slide(880,330,0.12,'square',0.12); },
+    boom(){ noise(0.3,0.18); slide(160,50,0.3,'sawtooth',0.12); },
+    warp(){ slide(330,1320,0.5,'sine',0.14); },
+    click(){ tone(440,0.05,'square',0.12); },
+    win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'triangle',0.18,i*0.12)); },
+    lose(){ [392,330,262].forEach((f,i)=>tone(f,0.25,'sine',0.18,i*0.14)); },
+    toggle(){ muted=!muted; return muted; },
+    isMuted(){ return muted; },
+    resume(){ const a=ac(); if(a&&a.state==='suspended') a.resume(); }
+  };
+})();
+
+const CHARS=[
+  {id:'gaia',nm:'GAIA',ro:'표준',ac:'#FF5C9D',gl:'#FF5C9Daa',perk:'균형잡힌 자연 수호자',svg:svgGaia},
+  {id:'calc',nm:'CALC-9',ro:'분석',ac:'#7B6CFF',gl:'#7B6CFFaa',perk:'첫 실수 1회 무효',svg:svgCalc},
+  {id:'stellan',nm:'STELLAN',ro:'점수+',ac:'#FF8A3D',gl:'#FF8A3Daa',perk:'점수 +50%',svg:svgStellan},
+  {id:'voxa',nm:'VOXA',ro:'점수x2',ac:'#1FE3A0',gl:'#1FE3A0aa',perk:'한번에 성공 시 점수 2배',svg:svgVoxa},
+  {id:'prism',nm:'PRISM',ro:'생명력',ac:'#FFD23D',gl:'#FFD23Daa',perk:'하트 4개로 시작',svg:svgPrism},
+];
+function svgGaia(){return `<svg viewBox="0 0 60 70"><path d="M16 40 Q12 58 30 62 Q48 58 44 40Z" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="16" ry="17" fill="#3a1530" stroke="#FF5C9D" stroke-width="1.5"/><path d="M16 22 Q10 6 18 4 Q22 14 20 22Z" fill="#0a5230" stroke="#7CFF9E"/><path d="M44 22 Q50 6 42 4 Q38 14 40 22Z" fill="#0a5230" stroke="#7CFF9E"/><circle cx="20" cy="6" r="3" fill="#FF5C9D"/><circle cx="40" cy="6" r="3" fill="#FFD24D"/><ellipse cx="25" cy="24" rx="3" ry="4" fill="#ffb3d4"/><ellipse cx="35" cy="24" rx="3" ry="4" fill="#ffb3d4"/></svg>`;}
+function svgCalc(){return `<svg viewBox="0 0 60 70"><rect x="14" y="26" width="32" height="34" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="18" y="8" width="24" height="22" rx="7" fill="#2a3566" stroke="#7B6CFF" stroke-width="1.5"/><rect x="22" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="22" y="18" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="14" width="7" height="2" fill="#4DD9FF"/><rect x="31" y="18" width="7" height="2" fill="#4DD9FF"/></svg>`;}
+function svgStellan(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="22" rx="16" ry="18" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/><ellipse cx="30" cy="22" rx="11" ry="13" fill="#0d2444"/><circle cx="25" cy="21" r="2.5" fill="#FFD24D"/><circle cx="35" cy="21" r="2.5" fill="#FFD24D"/><rect x="18" y="40" width="24" height="20" rx="8" fill="#241a4a" stroke="#FF8A3D" stroke-width="1.5"/></svg>`;}
+function svgVoxa(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="42" rx="16" ry="20" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><ellipse cx="30" cy="24" rx="14" ry="13" fill="#0d4630" stroke="#1FE3A0" stroke-width="1.5"/><path d="M20 14 L17 4 Q22 9 24 14Z" fill="#0d4630" stroke="#1FE3A0"/><path d="M40 14 L43 4 Q38 9 36 14Z" fill="#0d4630" stroke="#1FE3A0"/><ellipse cx="25" cy="23" rx="3" ry="4" fill="#9CFF57"/><ellipse cx="35" cy="23" rx="3" ry="4" fill="#9CFF57"/></svg>`;}
+function svgPrism(){return `<svg viewBox="0 0 60 70"><polygon points="30,30 46,42 42,62 18,62 14,42" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="30,4 42,8 46,22 38,34 22,34 14,22 18,8" fill="#2a2305" stroke="#FFD23D" stroke-width="1.5"/><polygon points="22,18 30,14 30,24" fill="#FFD23D"/><polygon points="38,18 30,14 30,24" fill="#FFD23D"/></svg>`;}
+
+/* 먹이사슬 스테이지 — 순서대로 정답. 4~5단계, 점점 어려워짐 */
+const L4=['생산자','1차 소비자','2차 소비자','최상위 포식자'];
+const L5=['생산자','1차 소비자','2차 소비자','3차 소비자','최상위 포식자'];
+const STAGES=[
+  { name:'초원 생태계', labels:L4,
+    chain:[{emo:'🌱',nm:'풀'},{emo:'🦗',nm:'메뚜기'},{emo:'🐸',nm:'개구리'},{emo:'🦅',nm:'매'}],
+    fact:'풀(생산자)을 메뚜기가 먹고, 개구리가 메뚜기를, 매가 개구리를 먹어요. 에너지가 위로 흐릅니다!' },
+  { name:'바다 생태계', labels:L4,
+    chain:[{emo:'🌿',nm:'식물성\\n플랑크톤'},{emo:'🦐',nm:'새우'},{emo:'🐟',nm:'물고기'},{emo:'🦈',nm:'상어'}],
+    fact:'바다의 시작은 식물성 플랑크톤이에요. 새우 → 물고기 → 상어로 이어지는 먹이사슬이죠!' },
+  { name:'숲 생태계', labels:L4,
+    chain:[{emo:'🌰',nm:'도토리'},{emo:'🐭',nm:'쥐'},{emo:'🐍',nm:'뱀'},{emo:'🦉',nm:'올빼미'}],
+    fact:'도토리를 쥐가 먹고, 뱀이 쥐를, 올빼미가 뱀을 먹어요. 숲속의 균형이 유지됩니다!' },
+  { name:'정원 생태계', labels:L4,
+    chain:[{emo:'🌹',nm:'장미'},{emo:'🐛',nm:'애벌레'},{emo:'🐦',nm:'참새'},{emo:'🐱',nm:'고양이'}],
+    fact:'장미 잎을 애벌레가 먹고, 참새가 애벌레를, 고양이가 참새를 노려요. 정원에도 먹이사슬이!' },
+  { name:'연못 생태계', labels:L4,
+    chain:[{emo:'🪷',nm:'수초'},{emo:'🐌',nm:'우렁이'},{emo:'🐟',nm:'붕어'},{emo:'🦢',nm:'백조'}],
+    fact:'연못의 수초를 우렁이가 먹고, 붕어가 우렁이를, 백조가 붕어를 먹는 물가의 먹이사슬이에요!' },
+  { name:'사막 생태계', labels:L4,
+    chain:[{emo:'🌵',nm:'선인장'},{emo:'🐫',nm:'낙타'},{emo:'🦂',nm:'전갈'},{emo:'🦅',nm:'독수리'}],
+    fact:'메마른 사막에서도 선인장을 시작으로 먹이사슬이 이어져요. 전갈은 작지만 무서운 포식자예요!' },
+  { name:'극지 생태계', labels:L5,
+    chain:[{emo:'🦠',nm:'조류'},{emo:'🦐',nm:'크릴'},{emo:'🐟',nm:'물고기'},{emo:'🐧',nm:'펭귄'},{emo:'🦭',nm:'바다표범'}],
+    fact:'조류 → 크릴 → 물고기 → 펭귄 → 바다표범! 차가운 극지의 5단계 먹이사슬이에요.' },
+  { name:'사바나 생태계', labels:L5,
+    chain:[{emo:'🌾',nm:'풀'},{emo:'🦗',nm:'메뚜기'},{emo:'🦓',nm:'얼룩말'},{emo:'🐆',nm:'치타'},{emo:'🦁',nm:'사자'}],
+    fact:'풀 → 메뚜기 → 얼룩말 → 치타 → 사자! 사바나의 최상위 포식자는 사자랍니다.' },
+  { name:'열대우림 생태계', labels:L5,
+    chain:[{emo:'🍃',nm:'나뭇잎'},{emo:'🐛',nm:'애벌레'},{emo:'🐸',nm:'개구리'},{emo:'🐍',nm:'뱀'},{emo:'🦅',nm:'독수리'}],
+    fact:'무성한 우림에서 나뭇잎 → 애벌레 → 개구리 → 뱀 → 독수리로 이어지는 긴 먹이사슬이에요!' },
+  { name:'강 생태계', labels:L5,
+    chain:[{emo:'🌿',nm:'물풀'},{emo:'🦐',nm:'새우'},{emo:'🐟',nm:'송사리'},{emo:'🐠',nm:'쏘가리'},{emo:'🦦',nm:'수달'}],
+    fact:'물풀 → 새우 → 송사리 → 쏘가리 → 수달! 강의 최상위 포식자는 영리한 수달이에요.' },
+  { name:'갯벌 생태계', labels:L4,
+    chain:[{emo:'🦠',nm:'플랑크톤'},{emo:'🦪',nm:'조개'},{emo:'🦀',nm:'게'},{emo:'🦅',nm:'갈매기'}],
+    fact:'갯벌의 플랑크톤을 조개가 걸러 먹고, 게가 조개를, 갈매기가 게를 먹어요!' },
+  { name:'산악 생태계', labels:L5,
+    chain:[{emo:'🌿',nm:'이끼'},{emo:'🐇',nm:'산토끼'},{emo:'🦊',nm:'여우'},{emo:'🐺',nm:'늑대'},{emo:'🦅',nm:'검독수리'}],
+    fact:'이끼 → 산토끼 → 여우 → 늑대 → 검독수리! 험준한 산에도 정교한 먹이사슬이 있어요.' },
+  { name:'맹그로브 생태계', labels:L4,
+    chain:[{emo:'🌳',nm:'맹그로브'},{emo:'🦐',nm:'새우'},{emo:'🦀',nm:'게'},{emo:'🐊',nm:'악어'}],
+    fact:'바닷가 맹그로브 숲! 잎과 뿌리를 새우가, 게가 새우를, 악어가 게를 먹는 독특한 생태계예요.' },
+  { name:'툰드라 생태계', labels:L4,
+    chain:[{emo:'🌾',nm:'이끼·풀'},{emo:'🦌',nm:'순록'},{emo:'🐺',nm:'늑대'},{emo:'🐻‍❄️',nm:'북극곰'}],
+    fact:'추운 툰드라에서 이끼를 순록이 먹고, 늑대가 순록을, 북극곰이 최상위 포식자로 군림해요!' },
+  { name:'논 생태계', labels:L5,
+    chain:[{emo:'🌾',nm:'벼'},{emo:'🦗',nm:'메뚜기'},{emo:'🐸',nm:'개구리'},{emo:'🐍',nm:'뱀'},{emo:'🦅',nm:'황조롱이'}],
+    fact:'우리 농촌의 논! 벼 → 메뚜기 → 개구리 → 뱀 → 황조롱이로 이어지는 친숙한 먹이사슬이에요.' },
+  { name:'숲 (분해자 포함)', labels:['생산자','1차 소비자','2차 소비자','분해자'],
+    chain:[{emo:'🌳',nm:'나무'},{emo:'🐛',nm:'애벌레'},{emo:'🐦',nm:'새'},{emo:'🍄',nm:'버섯·곰팡이'}],
+    fact:'죽은 생물을 분해하는 \'분해자\'(버섯·곰팡이)는 영양분을 흙으로 돌려보내 생태계를 순환시켜요!' },
+  { name:'초원 (분해자 포함)', labels:['생산자','1차 소비자','최상위 포식자','분해자'],
+    chain:[{emo:'🌱',nm:'풀'},{emo:'🐰',nm:'토끼'},{emo:'🦊',nm:'여우'},{emo:'🦠',nm:'세균'}],
+    fact:'세균도 중요한 분해자예요! 죽은 동식물을 분해해 흙을 비옥하게 만들어 다시 풀이 자라게 해요.' },
+];
+
+let selChar=CHARS[0];
+const charGrid=document.getElementById('charGrid');
+CHARS.forEach((c,i)=>{const d=document.createElement('div');d.className='char-card'+(i===0?' sel':'');
+  d.style.setProperty('--ac',c.ac);d.style.setProperty('--gl',c.gl);
+  d.innerHTML=c.svg()+`<div class="nm" style="color:${c.ac}">${c.nm}</div><div class="ro">${c.ro}</div>`;
+  d.onclick=()=>{selChar=c;document.querySelectorAll('.char-card').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');};
+  charGrid.appendChild(d);});
+
+let state='menu';
+let score=0,life=3,maxLife=3,stageIdx=0,stagesDone=0,perfectCount=0;
+let calcShield=false, attemptedThisStage=false;
+let slotData=[]; // 각 슬롯에 놓인 카드 index (또는 null)
+
+function startGame(){
+  SFX.resume();
+  state='play';score=0;stageIdx=0;stagesDone=0;perfectCount=0;
+  maxLife=selChar.id==='prism'?4:3; life=maxLife;
+  calcShield=(selChar.id==='calc');
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('play').classList.add('on');
+  document.getElementById('score').textContent='0';
+  updateHearts(); loadStage();
+}
+
+function updateHearts(){document.getElementById('hearts').textContent='❤'.repeat(Math.max(0,life))+'♡'.repeat(Math.max(0,maxLife-life));}
+
+function loadStage(){
+  const st=STAGES[stageIdx];
+  attemptedThisStage=false;
+  document.getElementById('promptT').textContent=st.name;
+  document.getElementById('stage').textContent=`${stageIdx+1} / ${STAGES.length}`;
+  slotData=new Array(st.chain.length).fill(null);
+  // 슬롯 생성
+  const slots=document.getElementById('slots');slots.innerHTML='';
+  st.chain.forEach((_,i)=>{
+    const s=document.createElement('div');s.className='slot';s.dataset.idx=i;
+    s.innerHTML=`<span class="lvlt">${st.labels[i]}</span><span style="font-size:30px;opacity:0.3">?</span>`;
+    s.onclick=()=>clearSlot(i);
+    slots.appendChild(s);
+    if(i<st.chain.length-1){const ar=document.createElement('div');ar.className='arrow';ar.textContent='→';slots.appendChild(ar);}
+  });
+  // 트레이 카드 (섞어서)
+  const tray=document.getElementById('tray');tray.innerHTML='';
+  const order=st.chain.map((c,i)=>i).sort(()=>Math.random()-0.5);
+  order.forEach(ci=>{
+    const c=st.chain[ci];
+    const card=document.createElement('div');card.className='card';card.dataset.ci=ci;
+    card.innerHTML=`<div class="emo">${c.emo}</div><div class="nm">${c.nm.replace('\\n','<br>')}</div>`;
+    attachDrag(card);
+    tray.appendChild(card);
+  });
+}
+
+/* 드래그 앤 드롭 (마우스+터치 통합) + 탭하면 왼쪽부터 자동 배치 */
+let dragging=null, dragCI=-1, startX=0, startY=0;
+const ghost=document.getElementById('dragGhost');
+function attachDrag(card){
+  card.addEventListener('mousedown',e=>startDrag(e.clientX,e.clientY,card));
+  card.addEventListener('touchstart',e=>{const t=e.touches[0];startDrag(t.clientX,t.clientY,card);},{passive:true});
+}
+function startDrag(x,y,card){
+  if(card.classList.contains('placed'))return;
+  dragging=card;dragCI=+card.dataset.ci;startX=x;startY=y;card.classList.add('dragging');
+  ghost.querySelector('.emo').textContent=card.querySelector('.emo').textContent;
+  ghost.querySelector('.nm').innerHTML=card.querySelector('.nm').innerHTML;
+  ghost.style.display='flex';moveGhost(x,y);
+}
+function moveGhost(x,y){ghost.style.left=(x-39)+'px';ghost.style.top=(y-45)+'px';}
+function onMove(x,y){
+  if(!dragging)return;
+  moveGhost(x,y);
+  // 슬롯 하이라이트
+  document.querySelectorAll('.slot').forEach(s=>{
+    const r=s.getBoundingClientRect();
+    s.classList.toggle('over', x>r.left&&x<r.right&&y>r.top&&y<r.bottom);
+  });
+}
+function onUp(x,y){
+  if(!dragging)return;
+  let dropped=false;
+  document.querySelectorAll('.slot').forEach(s=>{
+    const r=s.getBoundingClientRect();
+    if(x>r.left&&x<r.right&&y>r.top&&y<r.bottom){
+      placeCard(+s.dataset.idx, dragCI); dropped=true;
+    }
+    s.classList.remove('over');
+  });
+  // 슬롯에 떨어뜨리지 않았고, 거의 움직이지 않았으면 = 탭 → 왼쪽 빈 칸에 자동 배치
+  if(!dropped){
+    const moved=Math.hypot(x-startX,y-startY);
+    if(moved<12){
+      const empty=slotData.indexOf(null);
+      if(empty>=0) placeCard(empty, dragCI);
+    }
+  }
+  dragging.classList.remove('dragging');
+  ghost.style.display='none';dragging=null;dragCI=-1;
+}
+document.addEventListener('mousemove',e=>onMove(e.clientX,e.clientY));
+document.addEventListener('touchmove',e=>{if(dragging){e.preventDefault();const t=e.touches[0];onMove(t.clientX,t.clientY);}},{passive:false});
+document.addEventListener('mouseup',e=>onUp(e.clientX,e.clientY));
+document.addEventListener('touchend',e=>{const t=e.changedTouches[0];onUp(t.clientX,t.clientY);});
+
+function placeCard(slotIdx, ci){
+  const st=STAGES[stageIdx];
+  // 이미 그 슬롯에 카드가 있으면 비우기
+  if(slotData[slotIdx]!==null){ unplaceCard(slotData[slotIdx]); }
+  // 같은 카드가 다른 슬롯에 있으면 비우기
+  const prevSlot=slotData.indexOf(ci);
+  if(prevSlot>=0) slotData[prevSlot]=null;
+  slotData[slotIdx]=ci;
+  SFX.click();
+  // UI 갱신
+  refreshSlots();
+}
+function clearSlot(slotIdx){
+  // 슬롯을 탭하면 그 칸의 카드를 트레이로 되돌림 (재배치 가능)
+  if(slotData[slotIdx]===null) return;
+  slotData[slotIdx]=null;
+  SFX.click();
+  refreshSlots();
+}
+function unplaceCard(ci){
+  document.querySelector(`.card[data-ci="${ci}"]`).classList.remove('placed');
+}
+function refreshSlots(){
+  const st=STAGES[stageIdx];
+  const slots=document.querySelectorAll('.slot');
+  slotData.forEach((ci,i)=>{
+    const s=slots[i];
+    if(ci!==null){
+      const c=st.chain[ci];
+      s.classList.add('filled');
+      s.innerHTML=`<span class="lvlt">${st.labels[i]}</span><div style="font-size:30px">${c.emo}</div><div style="font-size:10px;margin-top:2px">${c.nm.replace('\\n','<br>')}</div>`;
+    } else {
+      s.classList.remove('filled');
+      s.innerHTML=`<span class="lvlt">${st.labels[i]}</span><span style="font-size:30px;opacity:0.3">?</span>`;
+    }
+  });
+  // 트레이 카드 placed 표시
+  document.querySelectorAll('.card').forEach(card=>{
+    const ci=+card.dataset.ci;
+    card.classList.toggle('placed', slotData.includes(ci));
+  });
+}
+
+function checkAnswer(){
+  if(slotData.includes(null)){ flashPrompt('모든 칸을 채워주세요!'); return; }
+  const st=STAGES[stageIdx];
+  // 정답: slotData[i] === i (순서대로)
+  const correct=slotData.every((ci,i)=>ci===i);
+  if(correct){
+    stagesDone++;
+    let base=200;
+    if(!attemptedThisStage){ perfectCount++; if(selChar.id==='voxa')base*=2; }
+    if(selChar.id==='stellan')base=Math.round(base*1.5);
+    score+=base; document.getElementById('score').textContent=score;
+    SFX.win();
+    showFeedback(true,st.fact);
+  } else {
+    attemptedThisStage=true;
+    if(calcShield){ calcShield=false; SFX.wrong(); flashPrompt('CALC-9 보호막! 한 번 더 도전하세요'); return; }
+    SFX.wrong();
+    life--; updateHearts();
+    if(life<=0){ showFeedback(false,st.fact,true); }
+    else { flashPrompt('순서가 틀렸어요! 칸을 탭해 빼고 다시 배치하세요'); }
+  }
+}
+
+function flashPrompt(msg){
+  const p=document.querySelector('#prompt .s');const old=p.textContent;
+  p.textContent=msg;p.style.color='#FF4D6D';
+  setTimeout(()=>{p.textContent=old;p.style.color='';},1400);
+}
+
+function showFeedback(correct,fact,gameover){
+  const fb=document.getElementById('feedback');
+  document.getElementById('fbIco').textContent=correct?'🌿':'💔';
+  document.getElementById('fbTt').textContent=correct?'먹이사슬 완성!':'생태계 붕괴';
+  document.getElementById('fbTt').style.color=correct?'#7CFF9E':'#FF4D6D';
+  document.getElementById('fbTx').textContent=fact;
+  const nb=document.getElementById('fbNext');
+  if(gameover){nb.textContent='결과 보기';}
+  else if(stageIdx>=STAGES.length-1){nb.textContent='전체 완료!';}
+  else{nb.textContent='다음 생태계 →';}
+  nb.onclick=()=>{
+    fb.classList.add('hidden');
+    if(gameover){endGame();return;}
+    if(stageIdx>=STAGES.length-1){endGame(true);return;}
+    stageIdx++;loadStage();
+  };
+  fb.classList.remove('hidden');
+}
+
+function endGame(complete){
+  state='over';
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('play').classList.remove('on');
+  const ov=document.getElementById('over');ov.classList.remove('hidden');
+  document.getElementById('overName').textContent=selChar.nm;
+  document.getElementById('overName').style.color=selChar.ac;
+  document.getElementById('fScore').textContent=score;
+  document.getElementById('fStages').textContent=stagesDone;
+  document.getElementById('fPerfect').textContent=perfectCount;
+  document.getElementById('overTitle').textContent=complete?'🏆 생태계 마스터!':'게임 종료';
+  const key='chain_best_'+selChar.id,prev=+(localStorage.getItem(key)||0);
+  if(score>prev){localStorage.setItem(key,score);
+    if(!complete)document.getElementById('overTitle').textContent='★ NEW BEST! ★';}
+  if(complete) SFX.win(); else SFX.lose();
+}
+
+document.getElementById('checkBtn').onclick=checkAnswer;
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('retryBtn').onclick=startGame;
+document.getElementById('toMenu').onclick=()=>{state='menu';
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');};
+
+// 음소거 버튼
+(function(){ var b=document.getElementById('muteBtn');
+  if(b){ b.onclick=function(){ SFX.resume(); var m=SFX.toggle(); b.textContent = m ? '🔇' : '🔊'; }; }
+})();
+</script>
+</body>
+</html>

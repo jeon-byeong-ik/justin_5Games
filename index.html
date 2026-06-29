@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>학습 게임 아케이드 · Learning Arcade</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { min-height:100%; font-family:'Trebuchet MS',system-ui,sans-serif; color:#fff;
+    background:#06070f; user-select:none; overflow-x:hidden; }
+  body { background:
+    radial-gradient(circle at 15% 10%, #2a1b5e44 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, #0a523844 0%, transparent 40%),
+    radial-gradient(circle at 50% 90%, #3a153044 0%, transparent 45%),
+    #06070f; }
+  .wrap { max-width:1100px; margin:0 auto; padding:40px 20px 60px; }
+
+  header { text-align:center; margin-bottom:14px; }
+  .badge { display:inline-block; font-size:11px; letter-spacing:4px; color:#7B6CFF; margin-bottom:14px;
+    border:1px solid rgba(123,108,255,0.4); padding:5px 16px; border-radius:20px; }
+  h1 { font-size:clamp(34px,8vw,60px); font-weight:900; letter-spacing:2px; line-height:1.05;
+    background:linear-gradient(120deg,#fff 0%,#7B6CFF 35%,#1FE3A0 70%,#FFD23D 100%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .tagline { color:#888; font-size:15px; margin-top:12px; letter-spacing:1px; }
+
+  /* 캐릭터 스트립 */
+  .char-strip { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin:34px 0 12px; }
+  .hero { width:130px; border-radius:18px; padding:16px 10px 14px; text-align:center; cursor:default;
+    background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); transition:all 0.3s;
+    position:relative; overflow:hidden; }
+  .hero::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 50% 0%, var(--gl) 0%, transparent 70%);
+    opacity:0; transition:opacity 0.3s; }
+  .hero:hover { transform:translateY(-6px); border-color:var(--ac); }
+  .hero:hover::before { opacity:0.4; }
+  .hero svg { width:64px; height:74px; position:relative; }
+  .hero .hn { font-size:14px; font-weight:900; letter-spacing:1px; margin-top:8px; position:relative; }
+  .hero .hk { font-size:11px; color:#999; margin-top:2px; position:relative; }
+  .hero .ht { font-size:10px; margin-top:8px; padding:3px 0; border-top:1px solid rgba(255,255,255,0.08);
+    color:#aaa; position:relative; letter-spacing:0.5px; }
+  .strip-label { text-align:center; font-size:11px; letter-spacing:3px; color:#555; margin-top:30px; }
+
+  /* 게임 그리드 */
+  .games { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; margin-top:18px; }
+  .game-card { border-radius:22px; padding:26px 24px; cursor:pointer; position:relative; overflow:hidden;
+    background:rgba(255,255,255,0.03); border:1.5px solid rgba(255,255,255,0.1); transition:all 0.3s;
+    text-decoration:none; color:#fff; display:block; }
+  .game-card::after { content:''; position:absolute; top:-40%; right:-20%; width:200px; height:200px; border-radius:50%;
+    background:radial-gradient(circle, var(--gl) 0%, transparent 70%); opacity:0.5; transition:all 0.4s; }
+  .game-card:hover { transform:translateY(-5px); border-color:var(--ac); box-shadow:0 16px 40px rgba(0,0,0,0.4); }
+  .game-card:hover::after { transform:scale(1.4); opacity:0.8; }
+  .gc-top { display:flex; align-items:center; gap:14px; margin-bottom:14px; position:relative; }
+  .gc-icon { width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-size:30px; background:var(--ac); box-shadow:0 6px 18px var(--gl); flex-shrink:0; }
+  .gc-subj { font-size:10px; letter-spacing:2px; color:var(--ac); font-weight:800; }
+  .gc-title { font-size:21px; font-weight:900; margin-top:3px; }
+  .gc-desc { font-size:13px; color:#aaa; line-height:1.6; position:relative; }
+  .gc-meta { display:flex; gap:8px; margin-top:16px; position:relative; flex-wrap:wrap; }
+  .tag { font-size:10px; padding:4px 10px; border-radius:12px; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12); color:#bbb; letter-spacing:0.5px; }
+  .gc-play { position:absolute; bottom:24px; right:24px; font-size:13px; font-weight:900; color:var(--ac);
+    letter-spacing:1px; opacity:0; transform:translateX(-8px); transition:all 0.3s; }
+  .game-card:hover .gc-play { opacity:1; transform:translateX(0); }
+
+  footer { text-align:center; margin-top:46px; color:#555; font-size:12px; line-height:1.8; }
+  footer b { color:#888; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">LEARNING ARCADE</div>
+    <h1>학습 게임 아케이드</h1>
+    <div class="tagline">5명의 영웅과 함께하는 5가지 두뇌 게임 · 수학 · 영어 · 과학</div>
+  </header>
+
+  <div class="strip-label">★ 5명의 영웅 — 모든 게임에서 선택 가능 ★</div>
+  <div class="char-strip" id="charStrip"></div>
+
+  <div class="strip-label">★ 게임 선택 ★</div>
+  <div class="games" id="gameGrid"></div>
+
+  <footer>
+    <b>학습 게임 아케이드</b><br>
+    모든 게임은 5명의 영웅을 선택할 수 있고, 각 영웅마다 고유 능력이 있습니다.<br>
+    난이도 · 점수 · 콤보 · 최고기록 저장까지 — 키보드와 터치 모두 지원!
+  </footer>
+</div>
+
+<script>
+const CHARS=[
+  {id:'calc',nm:'CALC-9',kn:'칼크나인',ac:'#7B6CFF',gl:'#7B6CFF55',trait:'정밀·분석',svg:svgCalc},
+  {id:'stellan',nm:'STELLAN',kn:'스텔란',ac:'#FF8A3D',gl:'#FF8A3D55',trait:'점수 부스터',svg:svgStellan},
+  {id:'voxa',nm:'VOXA',kn:'복사',ac:'#1FE3A0',gl:'#1FE3A055',trait:'콤보 마스터',svg:svgVoxa},
+  {id:'gaia',nm:'GAIA',kn:'가이아',ac:'#FF5C9D',gl:'#FF5C9D55',trait:'생명력',svg:svgGaia},
+  {id:'prism',nm:'PRISM',kn:'프리즘',ac:'#FFD23D',gl:'#FFD23D55',trait:'침착·정밀',svg:svgPrism},
+];
+function svgCalc(){return `<svg viewBox="0 0 60 70"><rect x="12" y="24" width="36" height="38" rx="8" fill="#2a3566" stroke="#7B6CFF" stroke-width="2"/><rect x="16" y="6" width="28" height="24" rx="8" fill="#2a3566" stroke="#7B6CFF" stroke-width="2"/><rect x="21" y="12" width="8" height="2.5" fill="#4DD9FF"/><rect x="21" y="17" width="8" height="2.5" fill="#4DD9FF"/><rect x="31" y="12" width="8" height="2.5" fill="#4DD9FF"/><rect x="31" y="17" width="8" height="2.5" fill="#4DD9FF"/><rect x="18" y="32" width="24" height="12" rx="3" fill="#06121f" stroke="#7B6CFF"/><text x="30" y="41" text-anchor="middle" fill="#4DD9FF" font-size="7" font-family="monospace">9×9</text><rect x="20" y="48" width="6" height="6" rx="1" fill="#4DD9FF" opacity="0.6"/><rect x="34" y="48" width="6" height="6" rx="1" fill="#4DD9FF" opacity="0.6"/></svg>`;}
+function svgStellan(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="20" rx="17" ry="19" fill="#241a4a" stroke="#FF8A3D" stroke-width="2"/><ellipse cx="30" cy="20" rx="12" ry="14" fill="#0d2444"/><circle cx="24" cy="19" r="3" fill="#FFD24D"/><circle cx="36" cy="19" r="3" fill="#FFD24D"/><path d="M24 27 Q30 31 36 27" stroke="#FFD24D" stroke-width="2" fill="none"/><rect x="17" y="40" width="26" height="22" rx="9" fill="#241a4a" stroke="#FF8A3D" stroke-width="2"/><circle cx="30" cy="51" r="7" fill="#0d0a22" stroke="#FF8A3D"/><circle cx="44" cy="44" r="5" fill="#FF8A3D"/><circle cx="44" cy="44" r="2" fill="#FFD24D"/></svg>`;}
+function svgVoxa(){return `<svg viewBox="0 0 60 70"><ellipse cx="30" cy="44" rx="17" ry="21" fill="#0d4630" stroke="#1FE3A0" stroke-width="2"/><ellipse cx="30" cy="23" rx="15" ry="14" fill="#0d4630" stroke="#1FE3A0" stroke-width="2"/><path d="M19 13 L16 2 Q22 8 24 13Z" fill="#0d4630" stroke="#1FE3A0"/><path d="M41 13 L44 2 Q38 8 36 13Z" fill="#0d4630" stroke="#1FE3A0"/><ellipse cx="24" cy="22" rx="3.5" ry="4.5" fill="#9CFF57"/><ellipse cx="36" cy="22" rx="3.5" ry="4.5" fill="#9CFF57"/><circle cx="24" cy="23" r="1.5" fill="#000"/><circle cx="36" cy="23" r="1.5" fill="#000"/><text x="30" y="50" text-anchor="middle" fill="#9CFF57" font-size="9" font-family="monospace" font-weight="bold">A!</text></svg>`;}
+function svgGaia(){return `<svg viewBox="0 0 60 70"><path d="M15 40 Q11 60 30 64 Q49 60 45 40Z" fill="#3a1530" stroke="#FF5C9D" stroke-width="2"/><ellipse cx="30" cy="23" rx="17" ry="18" fill="#3a1530" stroke="#FF5C9D" stroke-width="2"/><path d="M15 21 Q8 4 17 2 Q22 13 20 22Z" fill="#0a5230" stroke="#7CFF9E" stroke-width="1.5"/><path d="M45 21 Q52 4 43 2 Q38 13 40 22Z" fill="#0a5230" stroke="#7CFF9E" stroke-width="1.5"/><circle cx="18" cy="4" r="3.5" fill="#FF5C9D"/><circle cx="42" cy="4" r="3.5" fill="#FFD24D"/><ellipse cx="24" cy="23" rx="3.5" ry="4.5" fill="#ffb3d4"/><ellipse cx="36" cy="23" rx="3.5" ry="4.5" fill="#ffb3d4"/><circle cx="24" cy="24" r="1.5" fill="#000"/><circle cx="36" cy="24" r="1.5" fill="#000"/></svg>`;}
+function svgPrism(){return `<svg viewBox="0 0 60 70"><polygon points="30,28 48,42 43,64 17,64 12,42" fill="#2a2305" stroke="#FFD23D" stroke-width="2"/><polygon points="30,2 43,7 48,22 38,35 22,35 12,22 17,7" fill="#2a2305" stroke="#FFD23D" stroke-width="2"/><polygon points="21,17 30,12 30,24" fill="#FFD23D"/><polygon points="39,17 30,12 30,24" fill="#FFD23D"/><line x1="23" y1="28" x2="37" y2="28" stroke="#FFD23D" stroke-width="2"/><polygon points="30,42 39,50 30,58 21,50" fill="#FFD23D" opacity="0.85"/></svg>`;}
+
+const GAMES=[
+  {file:'1-calc-shooter.html',subj:'MATH · 구구단',title:'구구단 슈팅',icon:'🚀',ac:'#7B6CFF',gl:'#7B6CFF55',
+   desc:'운석에 적힌 답 중 정답을 골라 격추하라! 곱셈·나눗셈·혼합! 빨리 맞히면 스피드 보너스까지.',tags:['액션','6단계','스피드 보너스']},
+  {file:'2-word-drop.html',subj:'ENGLISH · 어휘',title:'단어 낙하',icon:'🐉',ac:'#1FE3A0',gl:'#1FE3A055',
+   desc:'드래곤으로 뜻에 맞는 영단어 받기! 테마 7단계, 황금 단어 보너스.',tags:['영단어','7테마','230+단어']},
+  {file:'3-shape-defense.html',subj:'MATH · 도형',title:'도형 방어전',icon:'💎',ac:'#FFD23D',gl:'#FFD23D55',
+   desc:'넓이·둘레·홀짝 등 6가지 조건! 황금 도형 보너스까지.',tags:['6규칙','황금 도형','5단계']},
+  {file:'4-solar-explorer.html',subj:'SCIENCE · 우주',title:'태양계 탐험대',icon:'🪐',ac:'#FF8A3D',gl:'#FF8A3D55',
+   desc:'태양·달·혜성·소행성대 등 14개 천체! 매번 다른 퀴즈 42종.',tags:['14천체','42퀴즈','탐험']},
+  {file:'5-food-chain.html',subj:'SCIENCE · 생태',title:'먹이사슬 퍼즐',icon:'🌿',ac:'#FF5C9D',gl:'#FF5C9D55',
+   desc:'생산자→최상위 포식자→분해자까지! 17개 생태계의 먹이사슬.',tags:['17생태계','분해자','드래그']},
+];
+
+const strip=document.getElementById('charStrip');
+CHARS.forEach(c=>{const d=document.createElement('div');d.className='hero';
+  d.style.setProperty('--ac',c.ac);d.style.setProperty('--gl',c.gl);
+  d.innerHTML=c.svg()+`<div class="hn" style="color:${c.ac}">${c.nm}</div><div class="hk">${c.kn}</div><div class="ht">${c.trait}</div>`;
+  strip.appendChild(d);});
+
+const grid=document.getElementById('gameGrid');
+GAMES.forEach(g=>{const a=document.createElement('a');a.className='game-card';a.href=g.file;
+  a.style.setProperty('--ac',g.ac);a.style.setProperty('--gl',g.gl);
+  a.innerHTML=`<div class="gc-top"><div class="gc-icon">${g.icon}</div>
+    <div><div class="gc-subj">${g.subj}</div><div class="gc-title">${g.title}</div></div></div>
+    <div class="gc-desc">${g.desc}</div>
+    <div class="gc-meta">${g.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    <div class="gc-play">PLAY →</div>`;
+  grid.appendChild(a);});
+</script>
+</body>
+</html>
